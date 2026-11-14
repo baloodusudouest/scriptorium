@@ -282,3 +282,55 @@ def test_client_mistral_signale_une_sortie_douteuse_et_les_refus():
 def test_nom_de_fichier_sans_caracteres_interdits():
     assert fabrication.nom_fichier("A/B", 'Titre: "deux"?') == "AB - Titre deux"
     assert fabrication.nom_fichier("", "Seul") == "Seul"
+
+
+# ---------------------------------------------------------------- numéros de page (livre à index de marge)
+
+def page_a_index(numero, cote="g", derniere="saveur et profondeur."):
+    """Une page comme celles du livre de cocktails : index de lettres A à Z dans la marge, le « Z » à côté de
+    la dernière ligne du texte, petit numéro dans le coin en dessous, bords noirs du scan sur les côtés."""
+    W, H = 1662, 2342
+    im = Image.new("RGB", (W, H), (245, 243, 238))
+    d = ImageDraw.Draw(im)
+    d.rectangle((0, 0, 40, H), fill=(10, 10, 10))
+    d.rectangle((W - 40, 0, W, H), fill=(10, 10, 10))
+    polices = glob.glob("/usr/share/fonts/**/DejaVuSans.ttf", recursive=True)
+    sans = ImageFont.truetype(polices[0], 20) if polices else ImageFont.load_default()
+    corps, chiffres = _police(22), _police(24)
+    for i, lettre in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+        d.text((60 if cote == "g" else W - 80, 150 + i * 81), lettre, font=sans, fill=(60, 60, 60))
+    for y in range(150, 2160, 34):
+        d.text((150, y), "45 ml de whiskey irlandais, 15 ml de Kirsch vieux, xérès oloroso.", font=corps, fill=(30, 30, 30))
+    d.text((150, 2170), derniere, font=corps, fill=(30, 30, 30))
+    if numero is not None:
+        d.text((70 if cote == "g" else W - 110, 2265), str(numero), font=chiffres, fill=(20, 20, 20))
+    return im
+
+
+@pytest.mark.skipif(not TESSERACT, reason="Tesseract absent")
+def test_numero_dans_le_coin_et_lettre_d_index_ignoree():
+    assert inventaire.lire_numero(page_a_index(72, "g")) == 72
+    assert inventaire.lire_numero(page_a_index(118, "d")) == 118
+    # Sans numéro : le « Z » de l'index ne doit pas devenir « 2 », ni le « 5 ml » de la dernière ligne « 5 »
+    assert inventaire.lire_numero(page_a_index(None, "g")) is None
+    assert inventaire.lire_numero(page_a_index(None, "d", "5 ml de sirop de groseille")) is None
+
+
+def test_relire_les_numeros(client, monkeypatch):
+    livre_id = importer(client, pdf_livre([1, 2, 3]))
+    main.ETAT["travail"].tout_faire()
+    client.post(f"/api/livres/{livre_id}/pages/2", json={"ecartee": True})
+    monkeypatch.setattr(inventaire, "lire_numero", lambda img: 40)
+    v = client.post(f"/api/livres/{livre_id}/numeros/relire").json()
+    assert v["etat"] == "decoupe" and v["relire"] == 1
+    main.ETAT["travail"].tout_faire()
+    v = client.get(f"/api/livres/{livre_id}").json()
+    assert v["etat"] == "inventaire" and v["relire"] == 0
+    assert [p["numero_lu"] for p in v["liste_pages"]] == [40, 40, 40]
+    assert [p["ecartee"] for p in v["liste_pages"]] == [0, 1, 0]       # la mise à l'écart est gardée
+    # Après la lecture par Mistral, plus de relecture des numéros
+    client.post(f"/api/livres/{livre_id}/inventaire/confirmer")
+    monkeypatch.setattr(mistral, "lire_page", fausse_lecture())
+    client.post(f"/api/livres/{livre_id}/lecture")
+    main.ETAT["travail"].tout_faire()
+    assert client.post(f"/api/livres/{livre_id}/numeros/relire").status_code == 409

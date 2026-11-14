@@ -318,6 +318,18 @@ def modifier_page(livre_id: int, rang: int, corps: dict = Body(...)):
     return _vue(_livre(livre_id), avec_pages=True)
 
 
+@app.post("/api/livres/{livre_id}/numeros/relire")
+def relire_numeros(livre_id: int):
+    """Relit les numéros imprimés de toutes les pages (après une amélioration de la lecture). Les numéros
+    corrigés à la main sont remplacés ; les pages écartées le restent. Seulement avant la lecture par Mistral."""
+    livre_ = _livre(livre_id)
+    if livre_["etat"] not in ("inventaire", "lecture") or livre_["lecture_demandee"] or \
+            ETAT["base"].un("SELECT COUNT(*) AS n FROM pages WHERE livre_id = ? AND lecture != 'attente'", livre_id)["n"]:
+        raise HTTPException(409, "Les numéros ne se relisent qu'avant la lecture par Mistral.")
+    ETAT["base"].ecrire("UPDATE livres SET etat = 'decoupe', relire = 1, inventaire_confirme = 0, avancement = 0 WHERE id = ?", livre_id)
+    return _vue(_livre(livre_id))
+
+
 @app.post("/api/livres/{livre_id}/inventaire/confirmer")
 def confirmer_inventaire(livre_id: int):
     livre_ = _livre(livre_id)

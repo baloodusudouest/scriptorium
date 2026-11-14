@@ -68,7 +68,14 @@ class Base:
         self._cnx.execute("PRAGMA foreign_keys = ON")
         self._cnx.execute("PRAGMA journal_mode = WAL")
         self._cnx.executescript(SCHEMA)
+        self._migrer()
         self._cnx.commit()
+
+    def _migrer(self) -> None:
+        """Colonnes ajoutées après la première version : ajoutées aux bases déjà créées."""
+        colonnes = {r[1] for r in self._cnx.execute("PRAGMA table_info(livres)")}
+        if "relire" not in colonnes:   # 0.2.1 : relire les numéros de page d'un livre déjà découpé
+            self._cnx.execute("ALTER TABLE livres ADD COLUMN relire INTEGER NOT NULL DEFAULT 0")
 
     # ------------------------------------------------------------ accès bas niveau
     def lire(self, sql: str, *args) -> list[dict]:

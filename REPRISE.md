@@ -4,6 +4,7 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## État (14/11/2026)
 
+- **0.2.1** (14/11/2026) : numéros de page mieux lus, et « Relire les numéros » (voir `CHANGELOG.md`).
 - **0.2.0, première livraison utile** (voir `CHANGELOG.md`) :
   - import d'un PDF par morceaux, avec reprise ;
   - découpe en pages sur le NAS et lecture locale des numéros imprimés (Tesseract) ;
@@ -44,7 +45,12 @@ Voir la fin de `docs/dossier.md`. Pour mémoire :
 - Le squelette s'appelait déjà 0.1.0 : les livraisons du conseil sont numérotées 0.2, 0.3 et 0.4.
 - Le mode lecture seule bloque aussi l'envoi à Mistral : les pages sortiraient de la maison, et la lecture est payante.
 - Mistral peut rendre une page sous forme de données (`[{"box_2d": …}]`) au lieu de texte : cette page est marquée « douteuse » et entre dans le livre en image (`app/mistral.py`, `_douteuse`).
-- Tesseract force en chiffres tout ce qu'il lit avec la liste blanche de chiffres : une tache plus large que 3,5 fois sa hauteur (un mot) est ignorée, sinon un titre courant devient un faux numéro.
+- Avec la liste blanche de chiffres, Tesseract change n'importe quelle lettre en chiffre : le « Z » d'un index de marge devenait « 2 » (premier vrai livre, 0.2.1). Les gardes actuelles :
+  - seule la dernière ligne d'encre est lue ;
+  - une ligne de texte est refusée ;
+  - le nombre doit être confirmé par une lecture libre ;
+  - une tache plus large que 3,5 fois sa hauteur (un mot) est ignorée.
+  Le Z d'un index lu seul, sous le texte, reste possible ; il est alors écarté par la pente des numéros voisins (`corriger`).
 - `tools/demo.py` remplace la lecture de Mistral le temps de préparer ses livres, puis la remet en place. Sans cela, les tests du vrai client échouent quand ils passent après les tests d'écran.
 - Le conteneur prend les droits du propriétaire de `/data` : le bookdrop de Grimmory doit être inscriptible par ce même compte.
 - Sonde : Hugging Face et l'API Mistral sont injoignables depuis l'environnement de Claude. `docling` 2.150 a déprécié `force_full_page_ocr` (écrire `mode=OcrMode.FULL_PAGE`).

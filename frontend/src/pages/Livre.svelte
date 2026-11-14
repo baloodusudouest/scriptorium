@@ -135,8 +135,8 @@
     </section>
   {:else if l.etat === 'decoupe'}
     <section class="max-w-xl rounded-2xl border bg-card p-5" role="status">
-      <h2 class="text-lg font-semibold">Découpe des pages</h2>
-      <p class="mt-1 text-sm text-muted-foreground">Chaque page est mise en image et son numéro imprimé est lu. Tu peux fermer cette page : le travail continue sur le NAS.</p>
+      <h2 class="text-lg font-semibold">{l.relire ? 'Relecture des numéros' : 'Découpe des pages'}</h2>
+      <p class="mt-1 text-sm text-muted-foreground">{l.relire ? 'Le numéro imprimé de chaque page est relu.' : 'Chaque page est mise en image et son numéro imprimé est lu.'} Tu peux fermer cette page : le travail continue sur le NAS.</p>
       <div class="mt-3"><Progress value={l.avancement} aria-label="Découpe" /></div>
       <p class="mt-2 text-sm tabular-nums">{l.avancement} %</p>
     </section>
@@ -203,7 +203,13 @@
       </ul>
 
       {#if !l.inventaire_confirme}
-        <div class="mt-4"><Button onclick={() => geste('confirmer', `/api/livres/${id}/inventaire/confirmer`)} disabled={attente === 'confirmer'}>Confirmer l'inventaire</Button></div>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <Button onclick={() => geste('confirmer', `/api/livres/${id}/inventaire/confirmer`)} disabled={attente === 'confirmer'}>Confirmer l'inventaire</Button>
+          {#if !b.lecture.faite && !b.lecture.douteuse && !b.lecture.erreur}
+            <Button variant="outline" onclick={() => geste('relire', `/api/livres/${id}/numeros/relire`)} disabled={attente === 'relire'}>Relire les numéros</Button>
+            <span class="text-sm text-muted-foreground">Les numéros corrigés à la main seront remplacés ; les pages écartées le restent.</span>
+          {/if}
+        </div>
       {/if}
     </section>
 

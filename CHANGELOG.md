@@ -1,5 +1,15 @@
 # Journal des versions — Scriptorium
 
+## 0.2.1 — 14/11/2026 — numéros de page mieux lus
+
+Constat sur le premier vrai livre : la page imprimée 72 était lue « 2 ». Dans ce livre de cocktails, la marge porte un index de lettres A à Z, et le numéro est un petit chiffre dans le coin en bas. Avec la liste blanche de chiffres, Tesseract changeait le « Z » en « 2 ».
+
+- Seule la **dernière ligne d'encre** du bas de la page est lue (la première du haut, à défaut). Une ligne de texte (plus de trois mots, ou un bloc large de 30 % de la page) n'est pas prise pour une ligne de numéro.
+- Un nombre n'est gardé que si une **lecture libre** (sans liste blanche) le confirme.
+- Les bords noirs du scan ne comptent plus comme de l'encre ; la bande lue passe de 9 à 12 % de la hauteur.
+- **« Relire les numéros »** : relit les numéros d'un livre déjà découpé, sans redécouper le PDF. Disponible avant la lecture par Mistral ; les numéros corrigés à la main sont remplacés, les pages écartées le restent.
+- Tests : page à index de marge (numéro dans le coin, « Z » ignoré, « 5 ml » de la dernière ligne ignoré), relecture des numéros.
+
 ## 0.2.0 — 14/11/2026 — première livraison (import, inventaire, lecture, EPUB, Grimmory)
 
 - **Import d'un livre déjà scanné**, par morceaux de 8 Mo :

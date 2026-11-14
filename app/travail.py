@@ -77,12 +77,20 @@ class Travail:
         try:
             total = len(pdf)
             deja = {r["rang"] for r in self.base.lire("SELECT rang FROM pages WHERE livre_id = ?", livre_id)}
+            relire = bool(self.base.un("SELECT relire FROM livres WHERE id = ?", livre_id)["relire"])
             for i in range(total):
                 rang = i + 1
-                if rang in deja and (pages_dir / f"{rang:04d}.jpg").exists():
+                image = pages_dir / f"{rang:04d}.jpg"
+                if rang in deja and image.exists():
+                    if relire:   # page déjà découpée : on ne relit que son numéro (la mise à l'écart est gardée)
+                        with Image.open(image) as img:
+                            numero = inventaire.lire_numero(img.convert("RGB"))
+                        self.base.ecrire("UPDATE pages SET numero_lu = ?, numero = ? WHERE livre_id = ? AND rang = ?",
+                                         numero, numero, livre_id, rang)
+                        self.base.ecrire("UPDATE livres SET avancement = ? WHERE id = ?", int(100 * rang / total), livre_id)
                     continue
                 img = pdf[i].render(scale=self.cfg.dpi / 72).to_pil().convert("RGB")
-                img.save(pages_dir / f"{rang:04d}.jpg", "JPEG", quality=88)
+                img.save(image, "JPEG", quality=88)
                 numero = inventaire.lire_numero(img)
                 self.base.ecrire("INSERT OR REPLACE INTO pages (livre_id, rang, numero_lu, numero) VALUES (?, ?, ?, ?)",
                                  livre_id, rang, numero, numero)
@@ -94,7 +102,7 @@ class Travail:
         corriges = inventaire.corriger([p["numero_lu"] for p in pages])
         self.base.plusieurs("UPDATE pages SET numero = ? WHERE livre_id = ? AND rang = ?",
                             [(n, livre_id, p["rang"]) for p, n in zip(pages, corriges)])
-        self.base.ecrire("UPDATE livres SET etat = 'inventaire', avancement = 100, erreur = '' WHERE id = ?", livre_id)
+        self.base.ecrire("UPDATE livres SET etat = 'inventaire', avancement = 100, erreur = '', relire = 0 WHERE id = ?", livre_id)
         self.en_cours = ""
 
     # ------------------------------------------------------------ lecture par Mistral
