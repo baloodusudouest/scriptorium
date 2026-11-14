@@ -19,8 +19,8 @@ LABEL org.opencontainers.image.title="scriptorium" \
       org.opencontainers.image.description="Scriptorium : d’un livre scanné à un livre en texte (PDF + EPUB)" \
       org.opencontainers.image.source="https://github.com/baloodusudouest/scriptorium"
 
-# gosu : abandon des droits root ; tzdata : heure française
-RUN apt-get update && apt-get install -y --no-install-recommends gosu tzdata \
+# gosu : abandon des droits root ; tzdata : heure française ; tesseract : lecture des numéros de page
+RUN apt-get update && apt-get install -y --no-install-recommends gosu tzdata tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=roues /wheels /wheels

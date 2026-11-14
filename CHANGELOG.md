@@ -1,5 +1,32 @@
 # Journal des versions — Scriptorium
 
+## 0.2.0 — 14/11/2026 — première livraison (import, inventaire, lecture, EPUB, Grimmory)
+
+- **Import d'un livre déjà scanné**, par morceaux de 8 Mo :
+  - reprise après une coupure, sans morceau en double ni trou ;
+  - place disque vérifiée avant l'envoi.
+- **Découpe en pages** sur le NAS (200 points par pouce), en tâche de fond qui reprend après un redémarrage.
+- **Inventaire** :
+  - numéros imprimés lus en local par Tesseract ;
+  - pages manquantes montrées à leur place, trous à vérifier, pages en double, pages sans numéro ;
+  - numéro corrigé d'un clic, page écartée ou remise ;
+  - confirmation à la main.
+- **Lecture par Mistral OCR** :
+  - sur un clic, coût estimé affiché avant ;
+  - arrêt immédiat si la clé est refusée ou le crédit épuisé ;
+  - une page rendue de façon douteuse est marquée et entre dans le livre en image.
+- **Fabrication** :
+  - EPUB 3 recomposé : une section par page, numéros de page et lettres de marge retirés, illustrations replacées, table des matières par les titres ;
+  - PDF d'archive des images de pages.
+- **Dépôt dans Grimmory** : l'EPUB seul, jamais par-dessus un fichier existant, noté au journal.
+- **Écrans** : Livres (lettrine sépia en EB Garamond), un livre en trois étapes (pages, lecture, livre), Connexion (Mistral, Grimmory, dossier de données), Réglages (journal).
+- Lecture seule : rien n'est envoyé à Mistral et rien n'est déposé dans Grimmory.
+- Retiré du socle : l'écran Synthèse et la bibliothèque de graphiques.
+- Tests :
+  - chemin complet d'un livre avec faux Mistral, inventaire réel par Tesseract, client Mistral, lecture seule, clé refusée ;
+  - écran sur PC et iPhone (`tools/demo.py`) ;
+  - en CI : Tesseract et Playwright.
+
 ## Inventaire et décisions — 14/11/2026
 
 - `sonde/outils/inventaire.py` (`docker compose run --rm inventaire`) : pages manquantes, à vérifier, en double, et pages sans numéro d'un PDF déjà scanné. La lecture du numéro imprimé se fait en local (taches d'encre lues une à une par Tesseract) ; le PDF est lu page par page.

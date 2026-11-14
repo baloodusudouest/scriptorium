@@ -5,17 +5,19 @@
   // la version, la déconnexion). Voir docs/format.md.
   import { onMount } from 'svelte'
   import { fly } from 'svelte/transition'
-  import LayoutGrid from '@lucide/svelte/icons/layout-grid'
+  import Library from '@lucide/svelte/icons/library'
   import Network from '@lucide/svelte/icons/network'
   import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal'
   import { api } from '$lib/api.js'
   import Connexion from './pages/Connexion.svelte'
-  import Synthese from './pages/Synthese.svelte'
+  import Livres from './pages/Livres.svelte'
+  import Livre from './pages/Livre.svelte'
   import Services from './pages/Services.svelte'
   import Reglages from './pages/Reglages.svelte'
 
+  // Livres est l'écran de travail ; un livre ouvert (#/livre/12) garde l'onglet Livres allumé.
   const onglets = [
-    { page: 'synthese', nom: 'Synthèse', icone: LayoutGrid },
+    { page: 'livres', nom: 'Livres', icone: Library },
     { page: 'connexion', nom: 'Connexion', icone: Network },
     { page: 'reglages', nom: 'Réglages', icone: SlidersHorizontal },
   ]
@@ -23,10 +25,16 @@
   let connecte = $state(null) // null : on ne sait pas encore
   let session = $state({ version: '', lecture_seule: false })
   let page = $state(lirePage())
+  let livreId = $state(lireLivre())
 
   function lirePage() {
-    const p = location.hash.replace('#/', '')
-    return onglets.some((o) => o.page === p) ? p : 'synthese'
+    const p = location.hash.replace('#/', '').split('/')[0]
+    if (p === 'livre') return 'livres'
+    return onglets.some((o) => o.page === p) ? p : 'livres'
+  }
+  function lireLivre() {
+    const m = location.hash.match(/^#\/livre\/(\d+)/)
+    return m ? Number(m[1]) : null
   }
 
   async function verifier() {
@@ -47,7 +55,7 @@
   onMount(verifier)
 </script>
 
-<svelte:window onhashchange={() => (page = lirePage())} />
+<svelte:window onhashchange={() => { page = lirePage(); livreId = lireLivre() }} />
 
 {#if connecte === false}
   <Connexion onconnecte={verifier} />
@@ -85,14 +93,16 @@
           Mode lecture seule : l'appli lit tout mais n'écrit nulle part (SCRIPTORIUM_LECTURE_SEULE).
         </p>
       {/if}
-      {#key page}
+      {#key page + (livreId ?? '')}
         <div in:fly={{ y: 6, duration: 180 }}>
           {#if page === 'connexion'}
-            <Services lectureSeule={session.lecture_seule} ondeconnecte={() => (connecte = false)} />
+            <Services ondeconnecte={() => (connecte = false)} />
           {:else if page === 'reglages'}
             <Reglages {session} {deconnecter} />
+          {:else if livreId}
+            <Livre id={livreId} lectureSeule={session.lecture_seule} ondeconnecte={() => (connecte = false)} />
           {:else}
-            <Synthese ondeconnecte={() => (connecte = false)} />
+            <Livres ondeconnecte={() => (connecte = false)} />
           {/if}
         </div>
       {/key}

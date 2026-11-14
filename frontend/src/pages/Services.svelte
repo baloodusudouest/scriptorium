@@ -1,62 +1,88 @@
 <script>
-  // « Connexion » : une tuile par service extérieur, avec son voyant. Toucher une tuile ouvre le
-  // service : ce que l'appli y lit, ce qu'elle y écrit, et ses gestes (vérifier, synchroniser).
-  // Pour l’instant un seul « service » : le dossier de données. Viendront le PC de calcul, Mistral OCR et Grimmory.
+  // « Connexion » : une tuile par service extérieur, avec son voyant. Toucher une tuile ouvre le service :
+  // ce que Scriptorium y lit et y écrit, et le geste « Vérifier ».
   // (pages/Connexion.svelte est la page du mot de passe : ne pas confondre.)
   import { onMount } from 'svelte'
+  import Sparkles from '@lucide/svelte/icons/sparkles'
+  import Library from '@lucide/svelte/icons/library'
   import HardDrive from '@lucide/svelte/icons/hard-drive'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
-  import { Badge } from '$lib/components/ui/badge/index.js'
 
-  let { lectureSeule = false, ondeconnecte } = $props()
+  let { ondeconnecte } = $props()
   let s = $state(null)
   let choisi = $state(null)
   let message = $state('')
-  let attente = $state(false)
+  let verification = $state(null)
 
   async function lire() {
-    try { s = await api.get('/api/synthese') } catch (err) { if (err.statut === 401) ondeconnecte?.(); else message = err.message }
+    try { s = await api.get('/api/services') } catch (err) { if (err.statut === 401) ondeconnecte?.(); else message = err.message }
   }
-  async function ecrire() {
-    attente = true
-    try { await api.post('/api/essai-ecriture'); message = 'Fichier témoin écrit dans le dossier de données.' }
-    catch (err) { message = err.message }
-    attente = false
-    lire()
+  async function verifierMistral() {
+    verification = { message: 'Vérification…' }
+    try { verification = await api.post('/api/services/mistral/verifier') } catch (err) { verification = { ok: false, message: err.message } }
   }
   onMount(lire)
+
+  const go = (o) => (o / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 1 })
+  let tuiles = $derived(s ? [
+    { id: 'mistral', nom: 'Mistral OCR', icone: Sparkles, ok: s.mistral.cle, etat: s.mistral.cle ? `${s.mistral.facturees} pages facturées` : 'aucune clé' },
+    { id: 'grimmory', nom: 'Grimmory', icone: Library, ok: s.grimmory.inscriptible, etat: s.grimmory.inscriptible ? 'dépôt possible' : 'dossier inaccessible' },
+    { id: 'disque', nom: 'Dossier de données', icone: HardDrive, ok: s.disque.inscriptible, etat: `${go(s.disque.libre)} Go libres` },
+  ] : [])
 </script>
 
 <header class="mb-5">
-  <p class="etiquette">Scriptorium</p>
   <h1 class="titre">Connexion</h1>
 </header>
 
+{#if message}<p class="mb-4 text-sm text-destructive" role="alert">{message}</p>{/if}
+
 <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-  <button type="button" aria-pressed={choisi === 'donnees'} onclick={() => (choisi = choisi === 'donnees' ? null : 'donnees')}
-          class="flex min-h-28 flex-col gap-1 rounded-2xl border bg-card p-4 text-left transition-colors hover:border-primary aria-pressed:border-primary">
-    <span class="flex items-start justify-between">
-      <HardDrive class="size-6 text-primary" aria-hidden="true" />
-      <span class="size-2.5 rounded-full {s?.donnees_inscriptibles ? 'bg-valide' : 'bg-muted-foreground/40'}" aria-hidden="true"></span>
-    </span>
-    <span class="font-medium">Dossier de données</span>
-    <span class="text-sm text-muted-foreground">{s ? (s.donnees_inscriptibles ? 'écriture possible' : 'écriture refusée') : 'lecture…'}</span>
-  </button>
+  {#each tuiles as t (t.id)}
+    {@const Icone = t.icone}
+    <button type="button" aria-pressed={choisi === t.id} onclick={() => (choisi = choisi === t.id ? null : t.id)}
+            class="flex min-h-28 flex-col gap-1 rounded-2xl border bg-card p-4 text-left transition-colors hover:border-primary aria-pressed:border-primary">
+      <span class="flex items-start justify-between">
+        <Icone class="size-6 text-primary" aria-hidden="true" />
+        <span class="size-2.5 rounded-full {t.ok ? 'bg-valide' : 'bg-muted-foreground/40'}" aria-hidden="true"></span>
+      </span>
+      <span class="font-medium">{t.nom}</span>
+      <span class="text-sm text-muted-foreground">{t.etat}</span>
+    </button>
+  {/each}
 </div>
 
-{#if choisi === 'donnees'}
-  <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Dossier de données">
-    <h2 class="text-lg font-semibold">Dossier de données</h2>
-    <p class="mt-1 text-sm text-muted-foreground">Le seul endroit où Scriptorium écrit pour l’instant. Dans une appli, chaque service a ici ses deux gestes :
-      « Vérifier » compare sans rien écrire ; « Synchroniser » écrit ce qui est sûr et envoie le reste dans « À traiter ».</p>
-    <div class="mt-3 flex flex-wrap items-center gap-2">
-      <Button variant="outline" onclick={lire}>Vérifier</Button>
-      <Button onclick={ecrire} disabled={attente || lectureSeule}>Écrire le fichier témoin</Button>
-      {#if lectureSeule}<Badge variant="outline">lecture seule : écriture refusée</Badge>{/if}
+{#if s && choisi === 'mistral'}
+  <section class="mt-4 max-w-3xl rounded-2xl border bg-card p-5" aria-label="Mistral OCR">
+    <h2 class="text-lg font-semibold">Mistral OCR</h2>
+    <p class="mt-1 text-sm text-muted-foreground">
+      Scriptorium lui envoie l'image de chaque page, sur ton clic « Faire lire » ; il renvoie le texte mis en forme et les illustrations.
+      La clé reste dans la stack (SCRIPTORIUM_MISTRAL_CLE) et ne passe jamais par le navigateur.
+      Modèle : {s.mistral.modele}. Estimation affichée : {s.mistral.prix_page} $ par page.
+    </p>
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <Button variant="outline" onclick={verifierMistral}>Vérifier</Button>
+      {#if verification}<span class="text-sm {verification.ok === false ? 'text-destructive' : ''}" role="status">{verification.message}</span>{/if}
     </div>
-    {#if message}<p class="mt-3 text-sm" role="status">{message}</p>{/if}
+  </section>
+{:else if s && choisi === 'grimmory'}
+  <section class="mt-4 max-w-3xl rounded-2xl border bg-card p-5" aria-label="Grimmory">
+    <h2 class="text-lg font-semibold">Grimmory</h2>
+    <p class="mt-1 text-sm text-muted-foreground">
+      Scriptorium dépose l'EPUB fabriqué dans le dossier d'import de Grimmory (SCRIPTORIUM_BOOKDROP), sur ton clic, sans jamais remplacer un fichier déjà présent.
+      Il n'y lit rien d'autre.
+    </p>
+    <p class="mt-2 text-sm">{s.grimmory.configure ? (s.grimmory.inscriptible ? 'Le dossier est accessible en écriture.' : 'Le dossier est absent ou en lecture seule : vérifie le volume dans la stack.') : 'Aucun dossier réglé.'}</p>
+    <div class="mt-3"><Button variant="outline" onclick={lire}>Vérifier</Button></div>
+  </section>
+{:else if s && choisi === 'disque'}
+  <section class="mt-4 max-w-3xl rounded-2xl border bg-card p-5" aria-label="Dossier de données">
+    <h2 class="text-lg font-semibold">Dossier de données</h2>
+    <p class="mt-1 text-sm text-muted-foreground">Les PDF importés, les pages découpées, le texte lu et les livres fabriqués. Compte environ trois fois la taille du PDF par livre.</p>
+    <p class="mt-2 text-sm">{go(s.disque.libre)} Go libres sur {go(s.disque.total)} Go{s.travail ? ` · en cours : ${s.travail}` : ''}.</p>
+    <div class="mt-3"><Button variant="outline" onclick={lire}>Vérifier</Button></div>
   </section>
 {:else}
-  <p class="mt-4 text-sm text-muted-foreground">Touche un service pour voir son état et ses gestes.</p>
+  <p class="mt-4 text-sm text-muted-foreground">Touche un service pour voir son état et ce que Scriptorium y fait.</p>
 {/if}

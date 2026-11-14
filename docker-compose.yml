@@ -6,10 +6,15 @@ services:
     container_name: scriptorium
     restart: unless-stopped
     ports:
-      - "${PORT_SCRIPTORIUM:-8091}:8091"          # réseau local et Tailscale uniquement
+      - "${PORT_SCRIPTORIUM:-8091}:8091"                  # réseau local et Tailscale uniquement
     environment:
       - TZ=Europe/Paris
-      - SCRIPTORIUM_PASSWORD=${APPS_PASSWORD}       # mot de passe commun à toutes les applis
-      - SCRIPTORIUM_LECTURE_SEULE=${SCRIPTORIUM_LECTURE_SEULE:-}   # « oui » : lecture seule
+      - SCRIPTORIUM_PASSWORD=${APPS_PASSWORD}             # mot de passe commun à toutes les applis
+      - SCRIPTORIUM_MISTRAL_CLE=${SCRIPTORIUM_MISTRAL_CLE:-}       # clé d'API Mistral ; vide : lecture non proposée
+      - SCRIPTORIUM_LECTURE_SEULE=${SCRIPTORIUM_LECTURE_SEULE:-}   # « oui » : rien n'est envoyé à Mistral ni déposé dans Grimmory
     volumes:
-      - ${SCRIPTORIUM_DATA_DIR}:/data             # état de l'appli (ici : un seul petit fichier)
+      - ${SCRIPTORIUM_DATA_DIR}:/data                     # livres importés, pages, texte lu, livres fabriqués
+      - ${SCRIPTORIUM_BOOKDROP_DIR}:/bookdrop             # dossier d'import de Grimmory (écriture)
+    labels:
+      # Scriptorium écrit dans le dossier d'import de Grimmory : pas de mise à jour automatique
+      - "com.centurylinklabs.watchtower.enable=false"

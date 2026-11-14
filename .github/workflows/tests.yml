@@ -11,7 +11,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # Tesseract : lecture des numéros de page ; interface compilée et navigateur : tests d'écran
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+      - run: cd frontend && npm ci && npx vite build
+      - run: pip install -r requirements-dev.txt && python -m playwright install --with-deps chromium
       - run: python -m pytest -q
 
   sonde:

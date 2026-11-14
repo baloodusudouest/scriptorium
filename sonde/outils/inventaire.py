@@ -79,6 +79,8 @@ def _nombres(img: Image.Image) -> list[int]:
         if not len(lignes):
             continue
         y0, y1 = lignes[0], lignes[-1] + 1
+        if (b - a) > 3.5 * (y1 - y0):      # plus large qu'un nombre de 4 chiffres : un mot (titre courant)
+            continue
         m = max(6, (y1 - y0) // 2)
         bout = gris.crop((max(0, a - m), max(0, y0 - m), min(gris.width, b + m), min(gris.height, y1 + m)))
         bout = bout.resize((bout.width * 3, bout.height * 3))

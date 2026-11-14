@@ -46,6 +46,7 @@
 
 @theme inline {
   --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-livre: "EB Garamond", Georgia, serif;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -99,4 +100,18 @@
   .titre { font-size: 2rem; line-height: 1.1; font-weight: 300; letter-spacing: -0.035em; }
   .etiquette { font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted-foreground); }
   .chiffre { font-weight: 300; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+
+  /* Signature de Scriptorium : la lettrine. L'initiale du titre, grande, en sépia, dans la police du livre. */
+  .lettrine-titre { font-family: var(--font-livre); font-weight: 400; line-height: 1.12; letter-spacing: -0.01em; }
+  .lettrine-titre::first-letter {
+    float: left; font-weight: 500; color: var(--app);
+    font-size: 3.1em; line-height: 0.82; margin: 0.06em 0.08em 0 0;
+  }
+  /* Texte recomposé : comme dans le livre */
+  .texte-livre { font-family: var(--font-livre); font-size: 1.12rem; line-height: 1.55; }
+  .texte-livre h1, .texte-livre h2, .texte-livre h3 { font-weight: 500; line-height: 1.2; margin: 1em 0 0.35em; }
+  .texte-livre h1 { font-size: 1.45em; } .texte-livre h2 { font-size: 1.2em; }
+  .texte-livre p { margin: 0 0 0.6em; }
+  .texte-livre img { max-width: 100%; border-radius: 4px; margin: 0.5em 0; }
+  .texte-livre table { border-collapse: collapse; font-size: 0.9em; } .texte-livre td, .texte-livre th { border: 1px solid var(--border); padding: 0.1em 0.4em; }
 }

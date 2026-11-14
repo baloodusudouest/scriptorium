@@ -237,6 +237,26 @@ Compte rendu : [`sonde.md`](sonde.md). Ce qui change par rapport au texte ci-des
   Chaque page manquante devient une tâche « à prendre » dans le livre. On la photographie à l'iPhone et elle **s'insère à sa place**, d'après son numéro. Une page en double peut être écartée. L'outil existe déjà dans la sonde (`sonde/outils/inventaire.py`).
 - **Voie B** (modèle de vision sur la carte AMD) : pas mesurée, mise de côté. Elle pourra remplacer Mistral plus tard si elle s'en approche.
 
+## Décisions prises après le conseil (14/11/2026)
+
+Avis complet : [`conseil.md`](conseil.md). Ce que l'utilisateur a retenu :
+
+- **Trois livraisons au lieu d'une.** Le squelette porte déjà le numéro 0.1.0, donc on compte à partir de 0.2 :
+  - **0.2** : import du PDF, inventaire des pages manquantes confirmé à la main, lecture par Mistral, EPUB recomposé simple et PDF d'archive, dépôt dans Grimmory ;
+  - **0.3** : écran de relecture image/texte, contre-lecture Marker sur le PC, choix page par page entre « recomposer » et « garder en image » ;
+  - **0.4** : prise iPhone page par page avec insertion des pages reprises, fiche par ISBN, PDF A5 soigné.
+- **Pas de test préalable** : la 0.2 sert elle-même de test, sur le PDF de 400 Mo.
+- Avis du conseil suivis dans la 0.2 :
+  - l'appel à Mistral tient dans une seule fonction (`app/mistral.py`) ;
+  - une page rendue de façon douteuse entre dans le livre en image ;
+  - le dépôt dans Grimmory ne porte que l'EPUB, pour éviter une seconde fiche du même livre ;
+  - l'archive des images de pages est fabriquée à côté.
+- **Livre recomposé gardé** : le président du conseil l'a préféré au fac-similé, pour la lecture sur la liseuse.
+- **Écarté pour l'instant** :
+  - EPUB à mise en page fixe ;
+  - voie B ;
+  - fiches de recettes vers Mealie : les quantités lues ne sont pas vérifiées.
+
 ## Questions ouvertes pour le conseil
 
 1. **Une seule livraison** pour une appli de cette taille, contre la règle du format commun (« ce qui protège d'abord »). Le risque est faible, puisque Scriptorium n'écrit que des fichiers neufs dans `bookdrop`. Faut-il quand même découper ?

@@ -1,0 +1,115 @@
+"""Fabrication du livre : EPUB recomposé à partir du texte lu, et PDF d'archive des images de pages.
+
+Livraison 0.1 (EPUB simple) :
+- une section par page source, dans l'ordre du PDF, sans les pages écartées ;
+- les lignes qui ne sont qu'un numéro de page ou une lettre de marge sont retirées ;
+- les illustrations découpées par Mistral sont replacées où il les a mises ;
+- une page que Mistral a rendue de façon douteuse, ou pas lue, entre dans le livre en image ;
+- la table des matières suit les titres de premier niveau.
+"""
+from __future__ import annotations
+
+import html
+import re
+import uuid
+from pathlib import Path
+
+import markdown as md_lib
+from ebooklib import epub
+
+CSS = """
+body { font-family: serif; line-height: 1.45; margin: 0 0.4em; }
+h1 { font-size: 1.35em; margin: 1.2em 0 0.4em; line-height: 1.2; }
+h2 { font-size: 1.15em; margin: 1em 0 0.3em; }
+h3 { font-size: 1.05em; margin: 0.8em 0 0.2em; }
+p { margin: 0 0 0.6em; text-align: left; }
+img { max-width: 100%; height: auto; }
+figure, .page-image { margin: 0.8em 0; text-align: center; }
+blockquote { margin: 0.8em 0; padding: 0.4em 0.8em; border-left: 3px solid #999; }
+table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.9em; }
+td, th { border: 1px solid #999; padding: 0.15em 0.4em; vertical-align: top; }
+.page-image img { width: 100%; }
+"""
+
+_LIGNE_PARASITE = re.compile(r"^\s*(\d{1,4}|[A-Z])\s*$")
+_IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
+
+
+def nom_fichier(auteur: str, titre: str) -> str:
+    brut = f"{auteur} - {titre}" if auteur.strip() else titre
+    propre = re.sub(r"[\\/:*?\"<>|\x00-\x1f]", "", brut).strip().strip(".")
+    return re.sub(r"\s+", " ", propre)[:150] or "Livre"
+
+
+def nettoyer(markdown_page: str, rang: int, images_connues: set[str]) -> str:
+    """Retire numéros de page et lettres de marge ; renomme les illustrations de la page (p0001-img-0.jpeg)."""
+    lignes = [l for l in markdown_page.splitlines() if not _LIGNE_PARASITE.match(l)]
+    texte = "\n".join(lignes)
+
+    def image(m: re.Match) -> str:
+        nom = f"p{rang:04d}-{Path(m.group(2)).name}"
+        return f"![{m.group(1)}](images/{nom})" if nom in images_connues else ""
+
+    return _IMAGE.sub(image, texte).strip()
+
+
+def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) -> dict:
+    """pages : lignes de la table pages, déjà triées et sans les écartées. Renvoie un petit bilan."""
+    lu = dossier / "lu"
+    images_dir = lu / "images"
+    images_connues = {p.name for p in images_dir.glob("*")} if images_dir.exists() else set()
+
+    livre_epub = epub.EpubBook()
+    livre_epub.set_identifier(f"scriptorium-{livre['id']}-{uuid.uuid4().hex[:8]}")
+    livre_epub.set_title(livre["titre"])
+    livre_epub.set_language(livre.get("langue") or "fr")
+    if livre.get("auteur"):
+        livre_epub.add_author(livre["auteur"])
+    style = epub.EpubItem(uid="style", file_name="style.css", media_type="text/css", content=CSS)
+    livre_epub.add_item(style)
+
+    sections, sommaire, en_image, utilisees = [], [], 0, set()
+    for p in pages:
+        rang = p["rang"]
+        md_fichier = lu / f"{rang:04d}.md"
+        if p["lecture"] == "faite" and md_fichier.exists():
+            texte = nettoyer(md_fichier.read_text(encoding="utf-8"), rang, images_connues)
+            corps = md_lib.markdown(texte, extensions=["tables", "footnotes", "toc", "sane_lists"], output_format="xhtml")
+            utilisees.update(re.findall(r'src="images/([^"]+)"', corps))
+        else:
+            # Page douteuse ou non lue : elle entre en image, le livre reste complet.
+            nom = f"page-{rang:04d}.jpg"
+            corps = f'<div class="page-image"><img src="images/{nom}" alt="Page {html.escape(str(p.get("numero") or rang))}"/></div>'
+            livre_epub.add_item(epub.EpubImage(uid=f"pageimg{rang}", file_name=f"images/{nom}", media_type="image/jpeg",
+                                               content=(dossier / "pages" / f"{rang:04d}.jpg").read_bytes()))
+            en_image += 1
+        section = epub.EpubHtml(title=f"Page {p.get('numero') or rang}", file_name=f"p{rang:04d}.xhtml", lang=livre.get("langue") or "fr")
+        section.content = corps or "<p></p>"
+        section.add_item(style)
+        livre_epub.add_item(section)
+        sections.append(section)
+        for ancre, titre in re.findall(r'<h1 id="([^"]+)">(.*?)</h1>', corps, flags=re.S):
+            titre_net = re.sub(r"<[^>]+>", "", titre).strip()
+            if titre_net and len(sommaire) < 400:
+                sommaire.append(epub.Link(f"p{rang:04d}.xhtml#{ancre}", html.unescape(titre_net), f"t{rang}-{ancre}"))
+    for nom in sorted(utilisees):
+        chemin = images_dir / nom
+        if chemin.is_file():
+            type_ = "image/png" if nom.lower().endswith(".png") else "image/jpeg"
+            livre_epub.add_item(epub.EpubImage(uid=f"img-{nom}", file_name=f"images/{nom}", media_type=type_, content=chemin.read_bytes()))
+    livre_epub.toc = sommaire or [epub.Link(sections[0].file_name, livre["titre"], "debut")] if sections else []
+    livre_epub.add_item(epub.EpubNcx())
+    livre_epub.add_item(epub.EpubNav())
+    livre_epub.spine = ["nav", *sections]
+    sortie.parent.mkdir(parents=True, exist_ok=True)
+    epub.write_epub(str(sortie), livre_epub)
+    return {"sections": len(sections), "pages_en_image": en_image, "titres": len(sommaire)}
+
+
+def fabriquer_archive(dossier: Path, pages: list[dict], sortie: Path) -> None:
+    """PDF des images de pages, dans l'ordre, sans les écartées : l'archive fidèle du livre."""
+    import img2pdf
+
+    fichiers = [str(dossier / "pages" / f"{p['rang']:04d}.jpg") for p in pages]
+    sortie.parent.mkdir(parents=True, exist_ok=True)
+    sortie.write_bytes(img2pdf.convert(fichiers))
