@@ -37,6 +37,25 @@
 3. **Mistral ne peut pas être cru sur parole.** Il invente sur les pages difficiles, justement celles qu'on lui enverrait en secours. La relecture devra comparer sa sortie à une lecture locale, et signaler les mots qui diffèrent, plutôt que remplacer le texte local par le sien.
 4. La voie B (modèle de vision sur la carte AMD) reste à mesurer.
 
+## Tour 1 bis (14/11/2026) : une page scannée à plat
+
+**Page** : une seule page de fiches denses du même livre, à plat et bien droite, sans table autour. C'est une capture d'écran d'environ 560 × 770 px : petite, mais nette.
+
+| Moteur | Temps | Résultat |
+|---|---|---|
+| Mistral OCR | 6 s | **Très bon.** Titres, étoiles, ingrédients ligne à ligne, texte suivi. Quelques erreurs plausibles : « abriant » pour « abricot », « Xocolail » pour « Xocolatl », « Chef Gray Thunder » pour « Crazy », « il tira sur le mur » pour « le mari » |
+| Marker | 18 s | Mots souvent justes, mais la structure s'effondre : quantités séparées de leurs ingrédients, faux tableau, lettres de marge mêlées au texte |
+| Docling | 44 s | Nombreuses fautes de lecture, ordre en partie brouillé, 15 morceaux d'image découpés |
+
+**Constat clé** : là où Mistral se trompe de façon plausible, Marker et Docling lisent juste (« mari », « Crazy »). Comparer deux lectures fait ressortir exactement les mots faux de Mistral, sans relire toute la page.
+
+**Conclusions provisoires (après les tours 1 et 1 bis)** :
+
+1. Sur une page propre, Mistral est nettement au-dessus des moteurs locaux sur processeur, pour la structure comme pour les mots.
+2. Les moteurs locaux sur processeur ne suffisent pas comme lecture principale pour ce type de livre, mais ils servent de **contre-lecture** : un mot qui diffère entre Mistral et Marker devient un mot à relire.
+3. La qualité de la prise compte toujours autant : page droite, seule, sans table.
+4. La voie B (modèle de vision sur la carte AMD) n'est toujours pas mesurée.
+
 ## Tour 2 (à faire)
 
 Mêmes photos, repassées par la préparation version 2. En plus :
