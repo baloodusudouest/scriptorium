@@ -29,6 +29,7 @@ blockquote { margin: 0.8em 0; padding: 0.4em 0.8em; border-left: 3px solid #999;
 table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.9em; }
 td, th { border: 1px solid #999; padding: 0.15em 0.4em; vertical-align: top; }
 .page-image img { width: 100%; }
+.page-originale { font-family: sans-serif; font-size: 0.7em; color: #888; text-align: right; margin: 0.4em 0 0.6em; }
 """
 
 _LIGNE_PARASITE = re.compile(r"^\s*(\d{1,4}|[A-Z])\s*$")
@@ -69,6 +70,8 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
     livre_epub.add_item(style)
 
     sections, sommaire, en_image, utilisees = [], [], 0, set()
+    liste_pages: list[tuple[str, str]] = []
+    pages_vues: set[int] = set()
     for p in pages:
         rang = p["rang"]
         md_fichier = lu / f"{rang:04d}.md"
@@ -84,6 +87,15 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
                                                content=(dossier / "pages" / f"{rang:04d}.jpg").read_bytes()))
             en_image += 1
         section = epub.EpubHtml(title=f"Page {p.get('numero') or rang}", file_name=f"p{rang:04d}.xhtml", lang=livre.get("langue") or "fr")
+        numero = p.get("numero")
+        if numero is not None:
+            # Page du livre papier : repère discret dans le texte, et entrée de la liste des pages (page-list)
+            # que les liseuses (KOReader) utilisent pour afficher les numéros de l'original.
+            ancre = f"page-{numero}" if numero not in pages_vues else f"page-{numero}-{rang}"
+            pages_vues.add(numero)
+            corps = (f'<span epub:type="pagebreak" role="doc-pagebreak" id="{ancre}" title="{numero}"></span>'
+                     f'<p class="page-originale">p. {numero}</p>{corps}')
+            liste_pages.append((f"p{rang:04d}.xhtml#{ancre}", str(numero)))
         section.content = corps or "<p></p>"
         section.add_item(style)
         livre_epub.add_item(section)
@@ -103,7 +115,30 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
     livre_epub.spine = ["nav", *sections]
     sortie.parent.mkdir(parents=True, exist_ok=True)
     epub.write_epub(str(sortie), livre_epub)
-    return {"sections": len(sections), "pages_en_image": en_image, "titres": len(sommaire)}
+    if liste_pages:
+        ajouter_liste_des_pages(sortie, liste_pages)
+    return {"sections": len(sections), "pages_en_image": en_image, "titres": len(sommaire), "pages_originales": len(liste_pages)}
+
+
+def ajouter_liste_des_pages(chemin: Path, liste: list[tuple[str, str]]) -> None:
+    """Ajoute la liste des pages du livre papier (nav epub:type="page-list") au fichier de navigation.
+    EbookLib ne sait pas l'écrire : on réécrit l'archive en gardant « mimetype » en tête, non compressé."""
+    import zipfile
+
+    entrees = "".join(f'<li><a href="{html.escape(h)}">{html.escape(t)}</a></li>' for h, t in liste)
+    bloc = f'<nav epub:type="page-list" id="page-list" hidden=""><h2>Pages</h2><ol>{entrees}</ol></nav>'
+    tmp = chemin.with_suffix(".tmp")
+    with zipfile.ZipFile(chemin) as src, zipfile.ZipFile(tmp, "w") as dst:
+        for info in src.infolist():
+            donnees = src.read(info.filename)
+            if info.filename.endswith("nav.xhtml"):
+                texte = donnees.decode("utf-8")
+                if 'xmlns:epub=' not in texte:
+                    texte = texte.replace("<html ", '<html xmlns:epub="http://www.idpf.org/2007/ops" ', 1)
+                donnees = texte.replace("</body>", bloc + "</body>", 1).encode("utf-8")
+            compression = zipfile.ZIP_STORED if info.filename == "mimetype" else zipfile.ZIP_DEFLATED
+            dst.writestr(info, donnees, compress_type=compression)
+    tmp.replace(chemin)
 
 
 def fabriquer_archive(dossier: Path, pages: list[dict], sortie: Path) -> None:

@@ -4,6 +4,7 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## État (14/11/2026)
 
+- **0.2.2** (14/11/2026) : Mistral lit sans attendre l'inventaire et donne les numéros de page, EPUB d'essai (pages lues), page de l'original dans l'EPUB (repère et `page-list`), dépôt après inventaire confirmé.
 - **0.2.1** (14/11/2026) : numéros de page mieux lus, et « Relire les numéros » (voir `CHANGELOG.md`).
 - **0.2.0, première livraison utile** (voir `CHANGELOG.md`) :
   - import d'un PDF par morceaux, avec reprise ;
@@ -41,6 +42,9 @@ Voir la fin de `docs/dossier.md`. Pour mémoire :
 - Rien vers Home Assistant.
 
 ## Pièges
+
+- EbookLib n'écrit pas la liste des pages (`page-list`) : `fabrication.ajouter_liste_des_pages` la glisse dans `nav.xhtml` en réécrivant l'archive, avec « mimetype » en tête et non compressé.
+- Numéro de page : celui corrigé à la main (`numero_manuel`), sinon celui de Mistral (`numero_mistral`), sinon celui de Tesseract (`numero_lu`) ; puis `corriger` écarte ce qui ne suit pas la pente des voisines.
 
 - Le squelette s'appelait déjà 0.1.0 : les livraisons du conseil sont numérotées 0.2, 0.3 et 0.4.
 - Le mode lecture seule bloque aussi l'envoi à Mistral : les pages sortiraient de la maison, et la lecture est payante.

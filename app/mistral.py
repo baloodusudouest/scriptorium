@@ -18,6 +18,7 @@ class PageLue:
     images: dict[str, bytes] = field(default_factory=dict)   # nom renvoyé par Mistral → contenu
     pages_facturees: int = 1
     douteuse: str = ""                                        # raison, si la sortie n'a pas l'air d'un texte
+    numero: int | None = None                                 # numéro imprimé repéré dans le texte rendu
 
 
 class ErreurMistral(RuntimeError):
@@ -37,6 +38,17 @@ def _douteuse(md: str) -> str:
     if len(md.strip()) < 20:
         return "presque aucun texte rendu"
     return ""
+
+
+_NUMERO = re.compile(r"^[\s*_#>|\-–—·.]*(?:page\s+)?(\d{1,4})[\s*_|\-–—·.]*$", re.IGNORECASE)
+
+
+def numero_page(md: str) -> int | None:
+    """Numéro imprimé repéré dans le texte rendu par Mistral : une ligne qui n'est qu'un nombre (« 72 »,
+    « — 72 — », « Page 72 »). Le dernier l'emporte (pied de page), sinon le premier (en-tête)."""
+    nombres = [int(m.group(1)) for l in md.splitlines() if (m := _NUMERO.match(l.strip())) and l.strip()]
+    nombres = [n for n in nombres if n > 0]
+    return nombres[-1] if nombres else None
 
 
 def lire_page(image_jpeg: bytes, cle: str, url: str, modele: str, client: httpx.Client | None = None) -> PageLue:
@@ -71,7 +83,9 @@ def lire_page(image_jpeg: bytes, cle: str, url: str, modele: str, client: httpx.
                 images[img["id"]] = _decoder(img["image_base64"])
     md = "\n\n".join(textes)
     facturees = (donnees.get("usage_info") or {}).get("pages_processed") or max(1, len(donnees.get("pages", [])))
-    return PageLue(markdown=md, images=images, pages_facturees=int(facturees), douteuse=_douteuse(md))
+    douteuse = _douteuse(md)
+    return PageLue(markdown=md, images=images, pages_facturees=int(facturees), douteuse=douteuse,
+                   numero=None if douteuse else numero_page(md))
 
 
 def verifier(cle: str, url: str) -> dict:

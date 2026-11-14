@@ -76,6 +76,11 @@ class Base:
         colonnes = {r[1] for r in self._cnx.execute("PRAGMA table_info(livres)")}
         if "relire" not in colonnes:   # 0.2.1 : relire les numéros de page d'un livre déjà découpé
             self._cnx.execute("ALTER TABLE livres ADD COLUMN relire INTEGER NOT NULL DEFAULT 0")
+        colonnes = {r[1] for r in self._cnx.execute("PRAGMA table_info(pages)")}
+        if "numero_mistral" not in colonnes:   # 0.2.2 : numéro imprimé repéré par Mistral
+            self._cnx.execute("ALTER TABLE pages ADD COLUMN numero_mistral INTEGER")
+        if "numero_manuel" not in colonnes:    # 0.2.2 : numéro corrigé à la main, jamais remplacé
+            self._cnx.execute("ALTER TABLE pages ADD COLUMN numero_manuel INTEGER NOT NULL DEFAULT 0")
 
     # ------------------------------------------------------------ accès bas niveau
     def lire(self, sql: str, *args) -> list[dict]:

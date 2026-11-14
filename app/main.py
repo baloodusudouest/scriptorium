@@ -152,7 +152,7 @@ def _livre(livre_id: int) -> dict:
 
 
 def _pages(livre_id: int) -> list[dict]:
-    return ETAT["base"].lire("SELECT rang, numero_lu, numero, ecartee, lecture, lecture_erreur, pages_facturees "
+    return ETAT["base"].lire("SELECT rang, numero_lu, numero_mistral, numero, numero_manuel, ecartee, lecture, lecture_erreur, pages_facturees "
                              "FROM pages WHERE livre_id = ? ORDER BY rang", livre_id)
 
 
@@ -312,7 +312,8 @@ def modifier_page(livre_id: int, rang: int, corps: dict = Body(...)):
         n = int(n) if n not in (None, "") else None
         if n is not None and not 0 < n < 10000:
             raise HTTPException(422, "Numéro de page entre 1 et 9999.")
-        base.ecrire("UPDATE pages SET numero = ? WHERE livre_id = ? AND rang = ?", n, livre_id, rang)
+        base.ecrire("UPDATE pages SET numero = ?, numero_manuel = ? WHERE livre_id = ? AND rang = ?",
+                    n, 1 if n is not None else 0, livre_id, rang)
     if "ecartee" in corps:
         base.ecrire("UPDATE pages SET ecartee = ? WHERE livre_id = ? AND rang = ?", 1 if corps["ecartee"] else 0, livre_id, rang)
     return _vue(_livre(livre_id), avec_pages=True)
@@ -335,8 +336,7 @@ def confirmer_inventaire(livre_id: int):
     livre_ = _livre(livre_id)
     if livre_["etat"] not in ("inventaire", "lecture", "pret"):
         raise HTTPException(409, "L'inventaire n'est pas encore prêt.")
-    etat = "lecture" if livre_["etat"] == "inventaire" else livre_["etat"]
-    ETAT["base"].ecrire("UPDATE livres SET inventaire_confirme = 1, etat = ? WHERE id = ?", etat, livre_id)
+    ETAT["base"].ecrire("UPDATE livres SET inventaire_confirme = 1 WHERE id = ?", livre_id)
     return _vue(_livre(livre_id), avec_pages=True)
 
 
@@ -344,9 +344,11 @@ def confirmer_inventaire(livre_id: int):
 
 @app.post("/api/livres/{livre_id}/lecture")
 def lancer_lecture(livre_id: int):
+    """Envoie à Mistral toutes les pages pas encore lues (0.2.2 : sans attendre l'inventaire, car Mistral
+    repère aussi le numéro imprimé de chaque page ; l'inventaire se confirme ensuite)."""
     livre_ = _livre(livre_id)
-    if not livre_["inventaire_confirme"]:
-        raise HTTPException(409, "Confirme d'abord l'inventaire des pages.")
+    if livre_["etat"] not in ("inventaire", "lecture", "pret"):
+        raise HTTPException(409, "Les pages ne sont pas encore découpées.")
     if not ETAT["cfg"].mistral_cle:
         raise HTTPException(409, "Aucune clé Mistral dans la stack (SCRIPTORIUM_MISTRAL_CLE).")
     exiger_ecriture("envoyé à Mistral")
@@ -357,16 +359,22 @@ def lancer_lecture(livre_id: int):
 # ---------------------------------------------------------------- fabrication et dépôt
 
 @app.post("/api/livres/{livre_id}/fabriquer")
-def fabriquer(livre_id: int):
+def fabriquer(livre_id: int, partiel: bool = False):
+    """Fabrique l'EPUB et le PDF d'archive. « partiel » : un EPUB d'essai avec les seules pages déjà lues,
+    pour voir le rendu pendant la lecture ; il n'est jamais déposé dans Grimmory."""
     livre_ = _livre(livre_id)
-    if not livre_["inventaire_confirme"]:
-        raise HTTPException(409, "Confirme d'abord l'inventaire des pages.")
+    if livre_["etat"] not in ("inventaire", "lecture", "pret"):
+        raise HTTPException(409, "Les pages ne sont pas encore découpées.")
     base: Base = ETAT["base"]
-    pages = base.lire("SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 ORDER BY rang", livre_id)
+    filtre = "AND lecture IN ('faite', 'douteuse')" if partiel else ""
+    pages = base.lire(f"SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 {filtre} ORDER BY rang", livre_id)
     if not pages:
-        raise HTTPException(409, "Aucune page à mettre dans le livre.")
+        raise HTTPException(409, "Aucune page lue pour l'instant." if partiel else "Aucune page à mettre dans le livre.")
     dossier = base.dossier(livre_id)
     nom = fabrication.nom_fichier(livre_["auteur"], livre_["titre"])
+    if partiel:
+        bilan = fabrication.fabriquer_epub(dossier, livre_, pages, dossier / "sortie" / f"{nom} (essai).epub")
+        return {**_vue(_livre(livre_id)), "fabrication": bilan, "essai": f"{nom} (essai).epub"}
     bilan = fabrication.fabriquer_epub(dossier, livre_, pages, dossier / "sortie" / f"{nom}.epub")
     fabrication.fabriquer_archive(dossier, pages, dossier / "sortie" / f"{nom} - pages.pdf")
     base.ecrire("UPDATE livres SET epub = ?, archive = ? WHERE id = ?", f"{nom}.epub", f"{nom} - pages.pdf", livre_id)
@@ -376,11 +384,12 @@ def fabriquer(livre_id: int):
 @app.get("/api/livres/{livre_id}/telecharger/{quoi}")
 def telecharger(livre_id: int, quoi: str):
     livre_ = _livre(livre_id)
-    nom = {"epub": livre_["epub"], "archive": livre_["archive"]}.get(quoi)
+    essai = f"{fabrication.nom_fichier(livre_['auteur'], livre_['titre'])} (essai).epub"
+    nom = {"epub": livre_["epub"], "archive": livre_["archive"], "essai": essai}.get(quoi)
     chemin = ETAT["base"].dossier(livre_id) / "sortie" / (nom or "")
     if not nom or not chemin.is_file():
         raise HTTPException(404, "Livre pas encore fabriqué.")
-    media = "application/epub+zip" if quoi == "epub" else "application/pdf"
+    media = "application/pdf" if quoi == "archive" else "application/epub+zip"
     return FileResponse(chemin, media_type=media, filename=nom)
 
 
@@ -392,6 +401,8 @@ def deposer(livre_id: int):
     source = ETAT["base"].dossier(livre_id) / "sortie" / (livre_["epub"] or "")
     if not livre_["epub"] or not source.is_file():
         raise HTTPException(409, "Fabrique d'abord le livre.")
+    if not livre_["inventaire_confirme"]:
+        raise HTTPException(409, "Confirme d'abord l'inventaire des pages : le livre déposé doit être complet ou accepté tel quel.")
     exiger_ecriture("déposé dans Grimmory")
     dossier = ETAT["cfg"].bookdrop
     if not _inscriptible(dossier):

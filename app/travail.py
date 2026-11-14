@@ -136,14 +136,17 @@ class Travail:
             for nom, contenu in resultat.images.items():
                 (lu / "images" / f"p{rang:04d}-{Path(nom).name}").write_bytes(contenu)
             etat = "douteuse" if resultat.douteuse else "faite"
-            self.base.ecrire("UPDATE pages SET lecture = ?, lecture_erreur = ?, pages_facturees = pages_facturees + ? WHERE id = ?",
-                             etat, resultat.douteuse, resultat.pages_facturees, p["id"])
+            self.base.ecrire("UPDATE pages SET lecture = ?, lecture_erreur = ?, numero_mistral = ?, pages_facturees = pages_facturees + ? WHERE id = ?",
+                             etat, resultat.douteuse, resultat.numero, resultat.pages_facturees, p["id"])
+            if resultat.numero is not None:
+                self.base.ecrire("UPDATE pages SET numero = ? WHERE id = ? AND numero_manuel = 0", resultat.numero, p["id"])
             lues += 1
             facturees += resultat.pages_facturees
             fini = self.base.un("SELECT COUNT(*) AS n FROM pages WHERE livre_id = ? AND ecartee = 0 AND lecture IN ('faite', 'douteuse')", livre_id)["n"]
             self.base.ecrire("UPDATE livres SET avancement = ? WHERE id = ?", int(100 * fini / max(1, len(pages))), livre_id)
         if lues:
             self.base.noter("lecture_mistral", livre_id, f"{lues} page(s) lue(s), {facturees} facturée(s)")
+            self.recalculer_numeros(livre_id)
         reste = self.base.un("SELECT COUNT(*) AS n FROM pages WHERE livre_id = ? AND ecartee = 0 AND lecture IN ('attente', 'erreur')", livre_id)["n"]
         if reste == 0:
             self.base.ecrire("UPDATE livres SET etat = 'pret', lecture_demandee = 0, erreur = '' WHERE id = ?", livre_id)
@@ -152,6 +155,16 @@ class Travail:
             message = livre["erreur"] or f"{reste} page(s) non lue(s) : relancer la lecture."
             self.base.ecrire("UPDATE livres SET lecture_demandee = 0, erreur = ? WHERE id = ?", message, livre_id)
         self.en_cours = ""
+
+    def recalculer_numeros(self, livre_id: int) -> None:
+        """Numéro de chaque page : celui corrigé à la main, sinon celui de Mistral, sinon celui de Tesseract ;
+        les lectures qui ne suivent pas leurs voisines sont écartées (pente des numéros)."""
+        pages = self.base.lire("SELECT id, numero_lu, numero_mistral, numero, numero_manuel FROM pages "
+                               "WHERE livre_id = ? ORDER BY rang", livre_id)
+        bruts = [p["numero_mistral"] if p["numero_mistral"] is not None else p["numero_lu"] for p in pages]
+        corriges = inventaire.corriger(bruts)
+        self.base.plusieurs("UPDATE pages SET numero = ? WHERE id = ? AND numero_manuel = 0",
+                            [(n, p["id"]) for p, n in zip(pages, corriges)])
 
     # ------------------------------------------------------------ outils
     def _erreur(self, livre_id: int, message: str) -> None:

@@ -168,8 +168,6 @@ def test_numero_corrige_a_la_main(client):
 def test_chemin_complet_jusqu_a_grimmory(client, monkeypatch, tmp_path):
     livre_id = importer(client, pdf_livre([1, 2, 3, 4]))
     main.ETAT["travail"].tout_faire()
-    assert client.post(f"/api/livres/{livre_id}/lecture").status_code == 409        # inventaire pas confirmé
-    assert client.post(f"/api/livres/{livre_id}/inventaire/confirmer").json()["etat"] == "lecture"
     v = client.get(f"/api/livres/{livre_id}").json()
     assert v["bilan"]["estimation"]["pages"] == 4
 
@@ -182,6 +180,8 @@ def test_chemin_complet_jusqu_a_grimmory(client, monkeypatch, tmp_path):
     assert v["bilan"]["facturees"] == 4
 
     r = client.post(f"/api/livres/{livre_id}/fabriquer").json()
+    assert client.post(f"/api/livres/{livre_id}/deposer").status_code == 409      # inventaire pas confirmé
+    client.post(f"/api/livres/{livre_id}/inventaire/confirmer")
     assert r["fabrication"]["sections"] == 4 and r["fabrication"]["pages_en_image"] == 1
     epub = client.get(f"/api/livres/{livre_id}/telecharger/epub")
     assert epub.headers["content-type"] == "application/epub+zip"
@@ -195,6 +195,15 @@ def test_chemin_complet_jusqu_a_grimmory(client, monkeypatch, tmp_path):
         assert any(n.endswith("images/p0001-img-0.jpeg") for n in noms)
         nav = z.read(next(n for n in noms if n.endswith("nav.xhtml"))).decode()
         assert "Recette 1" in nav                                       # table des matières par les titres
+        # Page du livre papier : repère dans le texte et liste des pages pour la liseuse
+        assert 'epub:type="pagebreak"' in p1 and 'class="page-originale">p. 1<' in p1
+        assert 'epub:type="page-list"' in nav and '>4</a>' in nav
+        # Archive valide : « mimetype » en tête et non compressé, chaque page XHTML bien formée
+        assert noms[0] == "mimetype" and z.getinfo("mimetype").compress_type == zipfile.ZIP_STORED
+        import xml.dom.minidom
+        for n in noms:
+            if n.endswith(".xhtml"):
+                xml.dom.minidom.parseString(z.read(n))
     archive = client.get(f"/api/livres/{livre_id}/telecharger/archive")
     assert archive.content.startswith(b"%PDF-")
 
@@ -334,3 +343,60 @@ def test_relire_les_numeros(client, monkeypatch):
     client.post(f"/api/livres/{livre_id}/lecture")
     main.ETAT["travail"].tout_faire()
     assert client.post(f"/api/livres/{livre_id}/numeros/relire").status_code == 409
+
+
+
+# ---------------------------------------------------------------- 0.3 : numéros par Mistral, EPUB d'essai
+
+def test_numero_page_dans_le_texte_de_mistral():
+    assert mistral.numero_page("# Titre\n\nB\n\n45 ml de gin\n\nZ\n\n72") == 72
+    assert mistral.numero_page("— 118 —\n\nTexte") == 118
+    assert mistral.numero_page("Page 9\n\nTexte") == 9
+    assert mistral.numero_page("45 ml de gin\n\n2,5 ml de sirop") is None
+    assert mistral.numero_page("") is None
+
+
+def test_numeros_de_mistral_et_pages_manquantes(client, monkeypatch):
+    """Mistral lit les pages sans attendre l'inventaire ; ses numéros remplacent ceux de Tesseract,
+    sauf un numéro corrigé à la main ; l'inventaire en déduit les pages manquantes."""
+    livre_id = importer(client, pdf_livre([None, None, None, None]))
+    monkeypatch.setattr(inventaire, "lire_numero", lambda img: 2)   # Tesseract se trompe partout
+    main.ETAT["travail"].tout_faire()
+    client.post(f"/api/livres/{livre_id}/pages/4", json={"numero": 76})   # corrigé à la main
+    numeros = iter([70, 71, 74, 75])
+
+    def lire_page(image, cle, url, modele, client=None):
+        n = next(numeros)
+        return mistral.PageLue(f"# Recette\n\nTexte de la page {n}, assez long.\n\n{n}", {}, 1, "", n)
+    monkeypatch.setattr(mistral, "lire_page", lire_page)
+    assert client.post(f"/api/livres/{livre_id}/lecture").status_code == 200
+    main.ETAT["travail"].tout_faire()
+    v = client.get(f"/api/livres/{livre_id}").json()
+    assert [p["numero"] for p in v["liste_pages"]] == [70, 71, 74, 76]
+    assert v["liste_pages"][3]["numero_mistral"] == 75 and v["liste_pages"][3]["numero_manuel"] == 1
+    assert v["bilan"]["inventaire"]["manquantes"] == [72, 73, 75]
+
+
+def test_epub_d_essai_avec_les_seules_pages_lues(client, monkeypatch):
+    livre_id = importer(client, pdf_livre([1, 2, 3, 4]))
+    main.ETAT["travail"].tout_faire()
+    assert client.post(f"/api/livres/{livre_id}/fabriquer?partiel=true").status_code == 409   # rien de lu
+    lecture = fausse_lecture()
+    appels = {"n": 0}
+
+    def deux_pages(*a, **k):        # la lecture s'arrête après deux pages (crédit épuisé)
+        appels["n"] += 1
+        if appels["n"] > 2:
+            raise mistral.ErreurMistral("trop de demandes ou crédit épuisé chez Mistral (429)")
+        return lecture(*a, **k)
+    monkeypatch.setattr(mistral, "lire_page", deux_pages)
+    client.post(f"/api/livres/{livre_id}/lecture")
+    main.ETAT["travail"].tout_faire()
+    r = client.post(f"/api/livres/{livre_id}/fabriquer?partiel=true").json()
+    assert r["fabrication"]["sections"] == 2 and r["fabrication"]["pages_en_image"] == 0
+    assert r["essai"].endswith("(essai).epub") and not r["epub"]            # l'essai n'est pas le livre
+    epub = client.get(f"/api/livres/{livre_id}/telecharger/essai")
+    assert epub.headers["content-type"] == "application/epub+zip"
+    with zipfile.ZipFile(io.BytesIO(epub.content)) as z:
+        noms = z.namelist()
+        assert any(n.endswith("p0001.xhtml") for n in noms) and not any(n.endswith("p0003.xhtml") for n in noms)

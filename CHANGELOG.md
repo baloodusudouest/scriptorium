@@ -1,5 +1,15 @@
 # Journal des versions — Scriptorium
 
+## 0.2.2 — 14/11/2026 — Mistral donne les numéros de page, EPUB d'essai, pages de l'original dans l'EPUB
+
+Constat sur le premier vrai livre : même corrigée, la lecture locale des numéros reste peu sûre. Demande de l'utilisateur : tout faire lire par Mistral, y compris le numéro de page, et pouvoir regarder un EPUB partiel.
+
+- **La lecture par Mistral part dès la découpe**, sans attendre l'inventaire. Le numéro imprimé est repéré dans le texte rendu (une ligne qui n'est qu'un nombre : « 72 », « — 72 — », « Page 72 » ; le dernier l'emporte). Il remplace celui de Tesseract, sauf un numéro corrigé à la main. L'inventaire des pages manquantes est recalculé après chaque lecture.
+- **EPUB d'essai** : seulement les pages déjà lues, à fabriquer à tout moment, même pendant la lecture. Il n'est jamais déposé dans Grimmory.
+- **Pages du livre papier dans l'EPUB** : un repère discret « p. 72 » en tête de chaque page, et la liste des pages EPUB 3 (`page-list`), que KOReader sait utiliser pour afficher les numéros de l'original.
+- **Le dépôt dans Grimmory attend l'inventaire confirmé** (le livre déposé doit être complet, ou accepté tel quel).
+- Tests : numéro repéré dans le texte de Mistral, numéros de Mistral et pages manquantes, numéro corrigé à la main gardé, EPUB d'essai, liste des pages, archive EPUB valide.
+
 ## 0.2.1 — 14/11/2026 — numéros de page mieux lus
 
 Constat sur le premier vrai livre : la page imprimée 72 était lue « 2 ». Dans ce livre de cocktails, la marge porte un index de lettres A à Z, et le numéro est un petit chiffre dans le coin en bas. Avec la liste blanche de chiffres, Tesseract changeait le « Z » en « 2 ».

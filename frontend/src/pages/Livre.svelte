@@ -1,7 +1,8 @@
 <script>
-  // Un livre : ses trois étapes, dans l'ordre (Pages → Lecture → Livre).
-  // Pages : inventaire des numéros imprimés, pages manquantes montrées à leur place, pages à écarter.
-  // Lecture : Mistral lit chaque page (coût estimé affiché avant). Livre : EPUB, PDF d'archive, Grimmory.
+  // Un livre : ses trois étapes (Pages, Lecture, Livre).
+  // 0.2.2 : la lecture par Mistral peut partir dès la découpe ; elle donne aussi le numéro imprimé de chaque page,
+  // qui nourrit l'inventaire. Un EPUB d'essai (pages déjà lues) se fabrique à tout moment ; le dépôt dans
+  // Grimmory attend l'inventaire confirmé.
   import { onMount } from 'svelte'
   import ArrowLeft from '@lucide/svelte/icons/arrow-left'
   import Download from '@lucide/svelte/icons/download'
@@ -20,6 +21,13 @@
   let numeroEdite = $state(null)      // rang de la page dont on corrige le numéro
   let numeroSaisi = $state('')
   let suppression = $state(false)
+  let lienEssai = $state('')
+
+  async function essai() {
+    lienEssai = ''
+    const r = await geste('essai', `/api/livres/${id}/fabriquer?partiel=true`)
+    if (r?.essai) lienEssai = `/api/livres/${id}/telecharger/essai?t=${Date.now()}`
+  }
 
   async function lire() {
     try { l = await api.get(`/api/livres/${id}`); erreur = '' }
@@ -158,8 +166,9 @@
           <dd class="mt-1 font-medium">{b.inventaire.sans_numero.length}</dd></div>
       </dl>
       <p class="mb-4 max-w-3xl text-sm text-muted-foreground">
-        Vérifie avec le sommaire du livre : un numéro mal lu se corrige d'un clic, une page en double s'écarte.
-        Les pages manquantes apparaissent à leur place ; leur reprise à l'iPhone arrive avec la version 0.3.
+        Les numéros viennent de Mistral dès qu'une page est lue (avant, d'une lecture locale moins sûre).
+        Vérifie avec le sommaire du livre : un numéro faux se corrige d'un clic, une page en double s'écarte.
+        Les pages manquantes apparaissent à leur place ; leur reprise à l'iPhone viendra plus tard.
       </p>
 
       <ul class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8" aria-label="Pages du PDF">
@@ -188,13 +197,13 @@
                 {:else}
                   <button type="button" class="rounded px-1 py-0.5 tabular-nums hover:bg-secondary" title="Corriger le numéro"
                           onclick={() => { numeroEdite = it.rang; numeroSaisi = it.numero ?? '' }}>
-                    {it.numero ?? '—'}{#if it.numero_lu != null && it.numero !== it.numero_lu}<span class="text-muted-foreground"> (lu {it.numero_lu})</span>{/if}
+                    {it.numero ?? '—'}{#if it.numero_manuel}<span class="text-muted-foreground"> (corrigé)</span>{/if}
                   </button>
                   <button type="button" class="rounded px-1 py-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
                           onclick={() => modifierPage(it.rang, { ecartee: !it.ecartee })}>{it.ecartee ? 'Remettre' : 'Écarter'}</button>
                 {/if}
               </div>
-              {#if l.inventaire_confirme && !it.ecartee && it.lecture !== 'attente'}
+              {#if !it.ecartee && it.lecture !== 'attente'}
                 <span class="text-xs {it.lecture === 'erreur' ? 'text-destructive' : 'text-muted-foreground'}" title={it.lecture_erreur}>{lectureNom[it.lecture]}</span>
               {/if}
             </li>
@@ -214,7 +223,7 @@
     </section>
 
     <!-- Étape 2 : la lecture ---------------------------------------------------------- -->
-    <section class="mb-8 max-w-3xl {l.inventaire_confirme ? '' : 'opacity-50'}" aria-labelledby="etape-lecture">
+    <section class="mb-8 max-w-3xl" aria-labelledby="etape-lecture">
       <h2 id="etape-lecture" class="mb-3 text-xl font-semibold">2. La lecture</h2>
       <div class="rounded-2xl border bg-card p-5">
         {#if l.etat === 'lecture' && l.lecture_demandee}
@@ -231,7 +240,7 @@
           {#if l.erreur}<p class="mt-2 text-sm text-destructive" role="alert">{l.erreur}</p>{/if}
           {#if b.estimation.pages}
             <div class="mt-4 flex flex-wrap items-center gap-3">
-              <Button onclick={() => geste('lire', `/api/livres/${id}/lecture`)} disabled={!l.inventaire_confirme || lectureSeule || attente === 'lire'}>
+              <Button onclick={() => geste('lire', `/api/livres/${id}/lecture`)} disabled={lectureSeule || attente === 'lire'}>
                 Faire lire {b.estimation.pages} page{b.estimation.pages > 1 ? 's' : ''} par Mistral
               </Button>
               <span class="text-sm text-muted-foreground">environ {b.estimation.dollars.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $</span>
@@ -243,16 +252,20 @@
     </section>
 
     <!-- Étape 3 : le livre ------------------------------------------------------------ -->
-    <section class="mb-10 max-w-3xl {l.inventaire_confirme ? '' : 'opacity-50'}" aria-labelledby="etape-livre">
+    <section class="mb-10 max-w-3xl" aria-labelledby="etape-livre">
       <h2 id="etape-livre" class="mb-3 text-xl font-semibold">3. Le livre</h2>
       <div class="flex flex-col gap-4 rounded-2xl border bg-card p-5">
         <p class="text-sm text-muted-foreground">
-          L'EPUB reprend le texte lu, page après page, avec les illustrations ; une page pas encore lue y entre en image.
-          Le PDF d'archive garde les pages telles qu'elles sont.
+          L'EPUB d'essai ne contient que les pages déjà lues : il sert à voir le rendu, même pendant la lecture.
+          Le livre complet reprend toutes les pages (une page pas encore lue y entre en image), avec un PDF d'archive.
         </p>
+        {#if lienEssai}<p class="text-sm" role="status">EPUB d'essai prêt : <a class="text-primary underline underline-offset-4" href={lienEssai}>le télécharger</a>.</p>{/if}
         <div class="flex flex-wrap gap-2">
+          <Button variant="outline" onclick={essai} disabled={!(b.lecture.faite + b.lecture.douteuse) || attente === 'essai'}>
+            {attente === 'essai' ? 'Fabrication…' : `EPUB d'essai (${b.lecture.faite + b.lecture.douteuse} page${b.lecture.faite + b.lecture.douteuse > 1 ? 's' : ''} lue${b.lecture.faite + b.lecture.douteuse > 1 ? 's' : ''})`}
+          </Button>
           <Button variant={b.fabrique ? 'outline' : 'default'} onclick={() => geste('fabriquer', `/api/livres/${id}/fabriquer`)}
-                  disabled={!l.inventaire_confirme || attente === 'fabriquer' || (l.etat === 'lecture' && l.lecture_demandee)}>
+                  disabled={attente === 'fabriquer' || (l.etat === 'lecture' && l.lecture_demandee)}>
             {attente === 'fabriquer' ? 'Fabrication…' : b.fabrique ? 'Fabriquer à nouveau' : 'Fabriquer le livre'}
           </Button>
           {#if b.fabrique}
@@ -265,8 +278,8 @@
             {#if l.depose_le}
               <p class="text-sm">Déposé dans Grimmory le {new Date(l.depose_le).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}.</p>
             {:else}
-              <Button onclick={() => geste('deposer', `/api/livres/${id}/deposer`)} disabled={lectureSeule || attente === 'deposer'}>Déposer dans Grimmory</Button>
-              <span class="text-sm text-muted-foreground">L'EPUB seul, pour éviter une seconde fiche du même livre.</span>
+              <Button onclick={() => geste('deposer', `/api/livres/${id}/deposer`)} disabled={lectureSeule || !l.inventaire_confirme || attente === 'deposer'}>Déposer dans Grimmory</Button>
+              <span class="text-sm text-muted-foreground">{l.inventaire_confirme ? 'L\'EPUB seul, pour éviter une seconde fiche du même livre.' : 'Confirme d\'abord l\'inventaire des pages (étape 1).'}</span>
             {/if}
           </div>
         {/if}

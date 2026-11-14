@@ -1,6 +1,6 @@
 <script>
   // « Livres » : la bibliothèque des livres en cours et finis, et l'import d'un PDF déjà scanné.
-  // La prise de vue à l'iPhone arrive en 0.3 ; en 0.1, un livre entre par son PDF.
+  // La prise de vue à l'iPhone arrive en 0.4 ; d'ici là, un livre entre par son PDF.
   import { onMount } from 'svelte'
   import Upload from '@lucide/svelte/icons/upload'
   import { api, envoyerFichier } from '$lib/api.js'
