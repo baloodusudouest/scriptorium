@@ -1,7 +1,11 @@
 """Fabrication du livre : EPUB recomposé à partir du texte lu, et PDF d'archive des images de pages.
 
-Livraison 0.1 (EPUB simple) :
-- une section par page source, dans l'ordre du PDF, sans les pages écartées ;
+EPUB recomposé, pensé aussi pour Comptoir (l'appli des cocktails, qui découpe un EPUB en recettes : un titre,
+la liste des ingrédients, la préparation) :
+- les pages, dans l'ordre du PDF et sans les écartées, sont regroupées en fichiers qui commencent à un titre :
+  une recette qui passe d'une page à l'autre n'est jamais coupée en deux fichiers ;
+- chaque page porte son repère du livre papier (« p. 72 », et la liste des pages EPUB 3) ;
+- les lignes d'ingrédients (« 45 ml de tequila », « 1 trait de bitters ») deviennent une vraie liste ;
 - les lignes qui ne sont qu'un numéro de page ou une lettre de marge sont retirées ;
 - les illustrations découpées par Mistral sont replacées où il les a mises ;
 - une page que Mistral a rendue de façon douteuse, ou pas lue, entre dans le livre en image ;
@@ -42,10 +46,39 @@ def nom_fichier(auteur: str, titre: str) -> str:
     return re.sub(r"\s+", " ", propre)[:150] or "Livre"
 
 
+_INGREDIENT = re.compile(
+    r"^\s*(?:compl[ée]ter\s+(?:avec|de)\b|"
+    r"(?:\d+(?:[.,]\d+)?(?:\s*(?:-|–|/|à)\s*\d+(?:[.,]\d+)?)?|½|¼|¾|1/2|1/4|une?|deux|trois|quatre|quelques)\s+"
+    r"(?:ml|cl|dl|l|g|kg|oz|traits?|gouttes?|cuill[eè]res?|c\.|zestes?|feuilles?|tranches?|rondelles?|pinc[ée]es?|"
+    r"quartiers?|brins?|morceaux?|doses?|barspoons?|dash(?:es)?|parts?|bâtons?|branches?|tiges?|gousses?|"
+    r"cubes?|boules?|pointes?|verres?|tasses?|fruits?|citrons?|oranges?|œufs?|oeufs?|blancs?|jaunes?)\b)",
+    re.IGNORECASE)
+
+
+def lister_ingredients(texte: str) -> str:
+    """Les paragraphes faits de lignes d'ingrédients qui se suivent deviennent une seule liste Markdown."""
+    blocs = re.split(r"\n\s*\n", texte)
+    sortie: list[str] = []
+    liste: list[str] = []
+    for bloc in blocs:
+        lignes = [l.strip() for l in bloc.strip().splitlines() if l.strip()]
+        if lignes and all(_INGREDIENT.match(l) and not l.startswith(("#", "-", "*", "|", ">")) for l in lignes):
+            liste.extend(lignes)
+            continue
+        if liste:
+            sortie.append("\n".join(f"- {l}" for l in liste))
+            liste = []
+        sortie.append(bloc.strip())
+    if liste:
+        sortie.append("\n".join(f"- {l}" for l in liste))
+    return "\n\n".join(b for b in sortie if b)
+
+
 def nettoyer(markdown_page: str, rang: int, images_connues: set[str]) -> str:
-    """Retire numéros de page et lettres de marge ; renomme les illustrations de la page (p0001-img-0.jpeg)."""
+    """Retire numéros de page et lettres de marge, met les ingrédients en liste, renomme les illustrations
+    de la page (p0001-img-0.jpeg)."""
     lignes = [l for l in markdown_page.splitlines() if not _LIGNE_PARASITE.match(l)]
-    texte = "\n".join(lignes)
+    texte = lister_ingredients("\n".join(lignes))
 
     def image(m: re.Match) -> str:
         nom = f"p{rang:04d}-{Path(m.group(2)).name}"
@@ -69,15 +102,21 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
     style = epub.EpubItem(uid="style", file_name="style.css", media_type="text/css", content=CSS)
     livre_epub.add_item(style)
 
-    sections, sommaire, en_image, utilisees = [], [], 0, set()
+    fichiers: list[dict] = []          # {"nom", "titre", "corps": [...]} : regroupement des pages
+    sommaire, en_image, utilisees = [], 0, set()
     liste_pages: list[tuple[str, str]] = []
     pages_vues: set[int] = set()
     for p in pages:
         rang = p["rang"]
         md_fichier = lu / f"{rang:04d}.md"
+        commence_par_titre = False
         if p["lecture"] == "faite" and md_fichier.exists():
             texte = nettoyer(md_fichier.read_text(encoding="utf-8"), rang, images_connues)
+            commence_par_titre = texte.lstrip().startswith("#")
             corps = md_lib.markdown(texte, extensions=["tables", "footnotes", "toc", "sane_lists"], output_format="xhtml")
+            # Identifiants propres à la page : plusieurs pages partagent un fichier
+            corps = re.sub(r'(id|href)="(#?)([^"#/:]+)"', lambda m: f'{m.group(1)}="{m.group(2)}p{rang}-{m.group(3)}"'
+                           if m.group(1) == "id" or m.group(2) else m.group(0), corps)
             utilisees.update(re.findall(r'src="images/([^"]+)"', corps))
         else:
             # Page douteuse ou non lue : elle entre en image, le livre reste complet.
@@ -86,30 +125,37 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
             livre_epub.add_item(epub.EpubImage(uid=f"pageimg{rang}", file_name=f"images/{nom}", media_type="image/jpeg",
                                                content=(dossier / "pages" / f"{rang:04d}.jpg").read_bytes()))
             en_image += 1
-        section = epub.EpubHtml(title=f"Page {p.get('numero') or rang}", file_name=f"p{rang:04d}.xhtml", lang=livre.get("langue") or "fr")
+        if not fichiers or commence_par_titre:
+            fichiers.append({"nom": f"p{rang:04d}.xhtml", "titre": f"Page {p.get('numero') or rang}", "corps": []})
+        courant = fichiers[-1]
         numero = p.get("numero")
         if numero is not None:
             # Page du livre papier : repère discret dans le texte, et entrée de la liste des pages (page-list)
-            # que les liseuses (KOReader) utilisent pour afficher les numéros de l'original.
+            # que les liseuses (KOReader) utilisent pour afficher les numéros de l'original. Comptoir s'en sert
+            # pour retrouver la page d'origine d'une recette.
             ancre = f"page-{numero}" if numero not in pages_vues else f"page-{numero}-{rang}"
             pages_vues.add(numero)
             corps = (f'<span epub:type="pagebreak" role="doc-pagebreak" id="{ancre}" title="{numero}"></span>'
                      f'<p class="page-originale">p. {numero}</p>{corps}')
-            liste_pages.append((f"p{rang:04d}.xhtml#{ancre}", str(numero)))
-        section.content = corps or "<p></p>"
-        section.add_item(style)
-        livre_epub.add_item(section)
-        sections.append(section)
+            liste_pages.append((f"{courant['nom']}#{ancre}", str(numero)))
+        courant["corps"].append(corps)
         for ancre, titre in re.findall(r'<h1 id="([^"]+)">(.*?)</h1>', corps, flags=re.S):
             titre_net = re.sub(r"<[^>]+>", "", titre).strip()
             if titre_net and len(sommaire) < 400:
-                sommaire.append(epub.Link(f"p{rang:04d}.xhtml#{ancre}", html.unescape(titre_net), f"t{rang}-{ancre}"))
+                sommaire.append(epub.Link(f"{courant['nom']}#{ancre}", html.unescape(titre_net), f"t-{ancre}"))
+    sections = []
+    for f in fichiers:
+        section = epub.EpubHtml(title=f["titre"], file_name=f["nom"], lang=livre.get("langue") or "fr")
+        section.content = "".join(f["corps"]) or "<p></p>"
+        section.add_item(style)
+        livre_epub.add_item(section)
+        sections.append(section)
     for nom in sorted(utilisees):
         chemin = images_dir / nom
         if chemin.is_file():
             type_ = "image/png" if nom.lower().endswith(".png") else "image/jpeg"
             livre_epub.add_item(epub.EpubImage(uid=f"img-{nom}", file_name=f"images/{nom}", media_type=type_, content=chemin.read_bytes()))
-    livre_epub.toc = sommaire or [epub.Link(sections[0].file_name, livre["titre"], "debut")] if sections else []
+    livre_epub.toc = sommaire or ([epub.Link(sections[0].file_name, livre["titre"], "debut")] if sections else [])
     livre_epub.add_item(epub.EpubNcx())
     livre_epub.add_item(epub.EpubNav())
     livre_epub.spine = ["nav", *sections]
@@ -117,7 +163,8 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
     epub.write_epub(str(sortie), livre_epub)
     if liste_pages:
         ajouter_liste_des_pages(sortie, liste_pages)
-    return {"sections": len(sections), "pages_en_image": en_image, "titres": len(sommaire), "pages_originales": len(liste_pages)}
+    return {"sections": len(sections), "pages": len(pages), "pages_en_image": en_image, "titres": len(sommaire),
+            "pages_originales": len(liste_pages)}
 
 
 def ajouter_liste_des_pages(chemin: Path, liste: list[tuple[str, str]]) -> None:

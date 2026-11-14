@@ -4,6 +4,7 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## État (14/11/2026)
 
+- **0.2.3** (14/11/2026) : EPUB lisible par Comptoir (recette jamais coupée entre deux fichiers, ingrédients en liste, repères de page dans le fil).
 - **0.2.2** (14/11/2026) : Mistral lit sans attendre l'inventaire et donne les numéros de page, EPUB d'essai (pages lues), page de l'original dans l'EPUB (repère et `page-list`), dépôt après inventaire confirmé.
 - **0.2.1** (14/11/2026) : numéros de page mieux lus, et « Relire les numéros » (voir `CHANGELOG.md`).
 - **0.2.0, première livraison utile** (voir `CHANGELOG.md`) :
@@ -42,6 +43,8 @@ Voir la fin de `docs/dossier.md`. Pour mémoire :
 - Rien vers Home Assistant.
 
 ## Pièges
+
+- L'EPUB a deux lecteurs : la liseuse (KOReader) et **Comptoir**, qui en tire les recettes. Contrat avec Comptoir : titre de recette en `h1`–`h3`, ingrédients en `ul`, repère `epub:type="pagebreak"` (avec `title` = page du livre papier) dans le fil. Ne pas le casser sans prévenir Comptoir.
 
 - EbookLib n'écrit pas la liste des pages (`page-list`) : `fabrication.ajouter_liste_des_pages` la glisse dans `nav.xhtml` en réécrivant l'archive, avec « mimetype » en tête et non compressé.
 - Numéro de page : celui corrigé à la main (`numero_manuel`), sinon celui de Mistral (`numero_mistral`), sinon celui de Tesseract (`numero_lu`) ; puis `corriger` écarte ce qui ne suit pas la pente des voisines.

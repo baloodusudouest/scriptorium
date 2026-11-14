@@ -1,5 +1,13 @@
 # Journal des versions — Scriptorium
 
+## 0.2.3 — 14/11/2026 — EPUB lisible par Comptoir
+
+Le livre de cocktails sera importé dans Comptoir (l'appli des cocktails). Comptoir découpe un EPUB en recettes : un titre (`h1`–`h3`), les ingrédients (liste, ou lignes qui commencent par une quantité), puis la préparation ; il garde la page d'origine de chaque recette.
+
+- **Les pages sont regroupées en fichiers qui commencent à un titre** : une recette qui passe d'une page à l'autre n'est plus coupée en deux fichiers. Les repères de page restent dans le fil du texte. Les identifiants sont propres à chaque page, pour ne jamais se répéter dans un même fichier.
+- **Les lignes d'ingrédients deviennent une vraie liste** (« 45 ml de tequila », « 1 trait de bitters », « Compléter avec du champagne ») ; les autres lignes (« VERRE : coupe ») restent des paragraphes.
+- Test : une recette sur deux pages, ingrédients en liste, deux repères de page dans le même fichier, aucun identifiant en double.
+
 ## 0.2.2 — 14/11/2026 — Mistral donne les numéros de page, EPUB d'essai, pages de l'original dans l'EPUB
 
 Constat sur le premier vrai livre : même corrigée, la lecture locale des numéros reste peu sûre. Demande de l'utilisateur : tout faire lire par Mistral, y compris le numéro de page, et pouvoir regarder un EPUB partiel.

@@ -10,6 +10,7 @@ import dataclasses
 import glob
 import io
 import json
+import re
 import shutil
 import zipfile
 
@@ -182,7 +183,8 @@ def test_chemin_complet_jusqu_a_grimmory(client, monkeypatch, tmp_path):
     r = client.post(f"/api/livres/{livre_id}/fabriquer").json()
     assert client.post(f"/api/livres/{livre_id}/deposer").status_code == 409      # inventaire pas confirmé
     client.post(f"/api/livres/{livre_id}/inventaire/confirmer")
-    assert r["fabrication"]["sections"] == 4 and r["fabrication"]["pages_en_image"] == 1
+    # La page 3 (douteuse, en image) ne commence pas par un titre : elle rejoint le fichier de la page 2
+    assert r["fabrication"]["pages"] == 4 and r["fabrication"]["sections"] == 3 and r["fabrication"]["pages_en_image"] == 1
     epub = client.get(f"/api/livres/{livre_id}/telecharger/epub")
     assert epub.headers["content-type"] == "application/epub+zip"
     with zipfile.ZipFile(io.BytesIO(epub.content)) as z:
@@ -400,3 +402,32 @@ def test_epub_d_essai_avec_les_seules_pages_lues(client, monkeypatch):
     with zipfile.ZipFile(io.BytesIO(epub.content)) as z:
         noms = z.namelist()
         assert any(n.endswith("p0001.xhtml") for n in noms) and not any(n.endswith("p0003.xhtml") for n in noms)
+
+
+
+# ---------------------------------------------------------------- EPUB lisible par Comptoir
+
+def test_epub_pour_comptoir_recette_entiere_ingredients_en_liste(tmp_path):
+    """Une recette qui passe d'une page à l'autre reste dans un seul fichier ; les ingrédients forment une
+    liste ; chaque page garde son repère du livre papier ; les identifiants ne se répètent pas."""
+    (tmp_path / "lu").mkdir()
+    (tmp_path / "pages").mkdir()
+    (tmp_path / "lu" / "0001.md").write_text(
+        "# TWO GUNS MILLER\n\nVERRE : coupe\n\n45 ml de tequila (100 % agave reposado)\n\n45 ml de vermouth Martini Rosso\n\n"
+        "2,5 ml de sirop à la cannelle Monin\n\n1 trait de Xocolatl Mole bitters\n\nB\n\nORIGINE : adapté d'une recette\n\n72")
+    (tmp_path / "lu" / "0002.md").write_text("découverte en 2015 au Pouring Ribbons.\n\nC\n\n73")
+    (tmp_path / "lu" / "0003.md").write_text("# 18TH CENTURY COCKTAIL\n\n22,5 ml d'eau-de-vie d'abricot\n\nCompléter avec du champagne brut\n\n74")
+    pages = [{"rang": i, "numero": 71 + i, "lecture": "faite"} for i in (1, 2, 3)]
+    sortie = tmp_path / "livre.epub"
+    bilan = fabrication.fabriquer_epub(tmp_path, {"id": 1, "titre": "Essai", "auteur": "", "langue": "fr"}, pages, sortie)
+    assert bilan["sections"] == 2 and bilan["pages"] == 3
+    with zipfile.ZipFile(sortie) as z:
+        p1 = z.read(next(n for n in z.namelist() if n.endswith("p0001.xhtml"))).decode()
+        p3 = z.read(next(n for n in z.namelist() if n.endswith("p0003.xhtml"))).decode()
+    assert "Pouring Ribbons" in p1 and "ORIGINE" in p1                   # la recette entière dans un fichier
+    assert 'title="72"' in p1 and 'title="73"' in p1                     # deux repères de page dans le fil
+    assert p1.count("<li>") == 4 and "<li>1 trait de Xocolatl Mole bitters</li>" in p1
+    assert "<li>Compléter avec du champagne brut</li>" in p3
+    assert "VERRE : coupe" in p1 and "<li>VERRE" not in p1
+    ids = re.findall(r'id="([^"]+)"', p1)
+    assert len(ids) == len(set(ids))
