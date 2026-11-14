@@ -1,0 +1,15 @@
+# Service scriptorium à placer dans la stack homelab.yml (Portainer).
+# Les variables viennent des « Environment variables » de la stack (voir .env.example).
+services:
+  scriptorium:
+    image: ghcr.io/baloodusudouest/scriptorium:${SCRIPTORIUM_VERSION:-latest}
+    container_name: scriptorium
+    restart: unless-stopped
+    ports:
+      - "${PORT_SCRIPTORIUM:-8091}:8091"          # réseau local et Tailscale uniquement
+    environment:
+      - TZ=Europe/Paris
+      - SCRIPTORIUM_PASSWORD=${APPS_PASSWORD}       # mot de passe commun à toutes les applis
+      - SCRIPTORIUM_LECTURE_SEULE=${SCRIPTORIUM_LECTURE_SEULE:-}   # « oui » : lecture seule
+    volumes:
+      - ${SCRIPTORIUM_DATA_DIR}:/data             # état de l'appli (ici : un seul petit fichier)
