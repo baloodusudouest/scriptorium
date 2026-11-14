@@ -1,5 +1,14 @@
 # Journal des versions — Scriptorium
 
+## Sonde, tour 2 — 14/11/2026
+
+- Préparation des pages, version 2 :
+  - sens de lecture trouvé par Tesseract (lecture d'un extrait dans les quatre sens) ;
+  - recadrage sur le papier (clair et peu coloré), d'abord en hauteur sur toute la double page, puis en largeur page par page ;
+  - coupe au pli : une bande sombre des deux côtés, pour qu'une photo sombre pleine page n'attire pas la coupe.
+- Image légère : Tesseract français et numpy.
+- `docs/sonde.md` : compte rendu du tour 1.
+
 ## Sonde — 14/11/2026
 
 - `sonde/` : kit à lancer sur le PC, dans Docker Desktop.

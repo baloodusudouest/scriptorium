@@ -28,6 +28,20 @@ Mets dans `sonde\pages\` 3 ou 4 pages qui posent problème, en photos (JPEG, HEI
 - une page avec une **photo ou une illustration** et sa légende ;
 - une **double page** photographiée à l'iPhone, livre ouvert, pour juger la courbure près du pli.
 
+### Tour 2 (après le premier essai)
+
+- Garde les quatre photos du premier tour dans `pages\`.
+- Ajoute **deux photos d'une seule page** de fiches denses : la même page qu'une des doubles pages, prise de près, téléphone tenu dans le sens de la page, page entière dans le cadre.
+- Tu peux supprimer l'ancien dossier `resultats\`, pour que le rapport ne montre que le nouveau tour.
+
+`preparer` fait maintenant trois choses :
+
+- il remet chaque photo dans le bon sens ;
+- il retire la table autour ;
+- il coupe chaque double page au pli, en `-g` (page de gauche) et `-d` (page de droite).
+
+Regarde les images dans `pages_prep\` avant de lancer les moteurs : si une coupe est fausse, dis-le-moi.
+
 ## 3. La clé Mistral
 
 1. Copie `.env.example` en `.env`, dans le même dossier.
@@ -38,13 +52,14 @@ Mets dans `sonde\pages\` 3 ou 4 pages qui posent problème, en photos (JPEG, HEI
 Une commande à la fois, dans le PowerShell ouvert dans `sonde` :
 
 ```powershell
-docker compose run --rm preparer
+docker compose run --build --rm preparer
 docker compose run --rm mistral
 docker compose run --rm docling
 docker compose run --rm marker
 docker compose run --rm rapport
 ```
 
+- `--build` sur `preparer` reconstruit l'image légère (elle a changé au tour 2) ; inutile ensuite.
 - La **première** fois, `docling` et `marker` construisent leur image (2 à 3 Go chacune), puis téléchargent leurs modèles dans `.cache\`. Compte 10 à 20 minutes chacune. Les fois suivantes démarrent tout de suite.
 - Sur le processeur, une page peut prendre de quelques secondes à quelques minutes. Le temps de chaque page est mesuré : c'est un des résultats.
 - Une étape interrompue se relance telle quelle : les pages déjà lues ne sont pas refaites.

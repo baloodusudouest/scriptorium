@@ -91,6 +91,37 @@ def test_preparer_pdf_et_photos(sonde):
     assert noms == ["double.png", "livre-p001.png", "livre-p002.png"]
 
 
+def test_double_page_coupee_au_pli_meme_avec_une_photo_sombre(sonde):
+    _, m = sonde
+    # Double page 2000 × 1400 : à gauche une photo sombre pleine page, pli étroit à 1000, à droite du texte.
+    im = Image.new("RGB", (2000, 1400), (235, 232, 225))
+    d = ImageDraw.Draw(im)
+    d.rectangle((60, 60, 940, 1340), fill=(30, 28, 26))          # photo sombre
+    d.rectangle((420, 500, 600, 700), fill=(250, 220, 120))       # flamme claire dans la photo
+    d.rectangle((990, 0, 1010, 1400), fill=(120, 115, 108))       # le pli
+    for y in range(120, 1300, 40):
+        d.rectangle((1100, y, 1900, y + 12), fill=(40, 40, 40))   # lignes de texte
+    pli = m["preparer"].trouver_pli(im)
+    assert 960 <= pli <= 1040
+    pages = m["preparer"].preparer_image(im, "essai")
+    assert [n for n, _, _ in pages] == ["essai-g", "essai-d"]
+    gauche = pages[0][1]
+    assert gauche.width > 0.8 * pli   # la page en photo sombre n'est pas rognée
+
+
+def test_page_seule_pas_coupee_et_table_retiree(sonde):
+    _, m = sonde
+    im = Image.new("RGB", (1500, 2000), (120, 80, 40))            # table en bois
+    d = ImageDraw.Draw(im)
+    d.rectangle((150, 300, 1350, 1800), fill=(240, 238, 232))    # la page
+    for y in range(400, 1700, 40):
+        d.rectangle((250, y, 1250, y + 12), fill=(40, 40, 40))
+    pages = m["preparer"].preparer_image(im, "page")
+    assert len(pages) == 1
+    page = pages[0][1]
+    assert page.width < 1400 and page.height < 1700   # la table a été retirée autour
+
+
 def test_preparer_dossier_vide(sonde):
     _, m = sonde
     with pytest.raises(SystemExit):
