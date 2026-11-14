@@ -1,0 +1,45 @@
+# Sonde de Scriptorium — à lancer sur le PC, dans Docker Desktop, depuis ce dossier.
+# Chaque étape se lance à part (voir LISEZMOI.md) :
+#   docker compose run --rm preparer
+#   docker compose run --rm mistral
+#   docker compose run --rm vision      (LM Studio lancé sur le PC, voir LISEZMOI.md)
+#   docker compose run --rm docling
+#   docker compose run --rm marker
+#   docker compose run --rm rapport
+# Tout reste dans ce dossier : pages/ (ce que tu déposes), pages_prep/, resultats/, .cache/ (modèles téléchargés).
+
+x-leger: &leger
+  build: {context: ., dockerfile: images/leger.Dockerfile}
+  image: scriptorium-sonde-leger
+  volumes: [".:/sonde"]
+  env_file: [{path: .env, required: false}]
+
+services:
+  preparer:
+    <<: *leger
+    command: ["python", "preparer.py"]
+
+  mistral:
+    <<: *leger
+    command: ["python", "moteur_mistral.py"]
+
+  vision:
+    <<: *leger
+    command: ["python", "moteur_vision.py"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  rapport:
+    <<: *leger
+    command: ["python", "rapport.py"]
+
+  docling:
+    build: {context: ., dockerfile: images/docling.Dockerfile}
+    image: scriptorium-sonde-docling
+    volumes: [".:/sonde"]
+    command: ["python", "moteur_docling.py"]
+
+  marker:
+    build: {context: ., dockerfile: images/marker.Dockerfile}
+    image: scriptorium-sonde-marker
+    volumes: [".:/sonde"]
+    command: ["python", "moteur_marker.py"]

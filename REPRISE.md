@@ -5,12 +5,13 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 ## État (14/11/2026)
 
 - **0.1.0** : squelette copié du socle 0.3.2. Nom, variables (`SCRIPTORIUM_…`), port 8091, couleur sépia `#c4a07a` ; l'écran « Composants » a été retiré. Aucune fonction propre à Scriptorium pour l'instant ; les 9 tests du socle passent.
+- **Sonde prête** (`sonde/`, 14/11/2026) : à lancer sur le PC, voir `sonde/LISEZMOI.md`. Docling et Marker sur le processeur dans Docker, modèle de vision par LM Studio (Vulkan, RX 6700), Mistral OCR, rapport côte à côte. Partie légère testée (7 tests) ; Docling, Marker et LM Studio jamais lancés (modèles injoignables depuis l'environnement de Claude).
 - Conception : [`docs/dossier.md`](docs/dossier.md), en six sections, issu du grill du 14/11/2026. Le conseil n'a pas encore eu lieu.
 - **Jamais essayé sur la vraie installation** : rien. Le service n'est pas dans la stack.
 
 ## Prochaine étape
 
-1. **Sonde** (dossier, § 6 étape 0), sur 3 ou 4 pages riches d'un vrai livre, dont une double page prise à l'iPhone. Comparer les candidats de la voie A (processeur, Docker), un modèle de vision de la voie B (LM Studio ou Ollama sur la carte AMD RX 6700) et Mistral OCR. En attente : les pages et une clé Mistral.
+1. **Sonde** (dossier, § 6 étape 0) : l'utilisateur la lance sur son PC avec 3 ou 4 pages riches (dont une double page iPhone) et renvoie `resultats/`. Clé Mistral créée (14/11/2026). Ensuite, rapport de sonde (`docs/sonde.md`), qui choisit le moteur et la voie. MinerU et PaddleOCR n'y sont pas : à ajouter seulement si Docling et Marker déçoivent.
 2. Passage du dossier et du rapport de sonde au conseil.
 3. Code de la 1.0.0, livrée d'un bloc.
 
@@ -26,6 +27,9 @@ Voir le dossier, § 1. Pour mémoire :
 - Rien vers Home Assistant.
 
 ## Pièges
+
+- Sonde : le registre de modèles (Hugging Face) et l'API Mistral sont injoignables depuis l'environnement de Claude. Les moteurs lourds ne se testent que sur le PC.
+- `docling` (2.150) a déprécié `force_full_page_ocr` : il faut écrire `mode=OcrMode.FULL_PAGE`.
 
 - La carte du PC est une AMD : Docker Desktop sous Windows ne la voit pas. Le calcul dans un conteneur se fait sur le processeur.
 - Dépôt public : aucune page de livre sous droits, aucun chemin réel. Les valeurs réelles passent par les variables de la stack.

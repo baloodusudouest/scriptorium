@@ -1,0 +1,7 @@
+# Rien de personnel ni de protégé sur GitHub : pages de livres, résultats, clé, modèles téléchargés
+.env
+pages/*
+!pages/.gitkeep
+pages_prep/
+resultats/
+.cache/
