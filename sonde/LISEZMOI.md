@@ -11,6 +11,23 @@ But : passer 3 ou 4 pages difficiles d'un vrai livre dans chaque outil, puis com
 
 Rien n'est envoyé sur GitHub : `pages/`, `resultats/`, `.env` et les modèles téléchargés restent sur le PC.
 
+## 0. Inventaire d'un livre déjà scanné (pages manquantes)
+
+Pour un livre que tu as déjà en PDF :
+
+1. Dépose le PDF dans `sonde\livre\`. Un gros fichier, même de plusieurs centaines de Mo, passe sans problème.
+2. Lance `docker compose run --build --rm inventaire`.
+3. Ouvre `resultats\inventaire.html`.
+
+Rien n'est envoyé en ligne : seul le numéro imprimé de chaque page est lu, sur le PC. Compte environ une à deux secondes par page.
+
+Le rapport donne quatre listes :
+
+- **manquantes** : les numéros absents du PDF ;
+- **à vérifier** : les trous où une page sans numéro lisible pourrait être l'une des pages manquantes ;
+- **en double** ;
+- **sans numéro** : couverture, pages de titre, photos pleine page.
+
 ## 1. Récupérer la sonde
 
 1. Sur https://github.com/baloodusudouest/scriptorium, clique sur **Code › Download ZIP**.

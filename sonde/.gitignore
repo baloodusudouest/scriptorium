@@ -3,5 +3,7 @@
 pages/*
 !pages/.gitkeep
 pages_prep/
+livre/*
+!livre/.gitkeep
 resultats/
 .cache/

@@ -29,9 +29,10 @@ def sonde(tmp_path, monkeypatch):
     monkeypatch.setenv("SONDE_RACINE", str(tmp_path))
     (tmp_path / "pages").mkdir()
     mods = {}
-    for nom in ("commun", "preparer", "moteur_mistral", "moteur_vision", "rapport"):
+    noms = ("commun", "preparer", "moteur_mistral", "moteur_vision", "rapport", "inventaire")
+    for nom in noms:
         sys.modules.pop(nom, None)
-    for nom in ("commun", "preparer", "moteur_mistral", "moteur_vision", "rapport"):
+    for nom in noms:
         mods[nom] = importlib.import_module(nom)
     return tmp_path, mods
 
@@ -216,3 +217,16 @@ def test_rapport_autonome_et_sans_script(sonde):
     assert "<script>" not in page.lower().split("</style>")[1]
     assert "RuntimeError: panne" in page
     assert "Docling (processeur)" in page and "Mistral OCR (en ligne)" in page
+
+
+def test_inventaire_trous_surs_douteux_et_doubles(sonde):
+    _, m = sonde
+    inv = m["inventaire"]
+    # Index du PDF :        0     1   2  3  4  5   6     7   8   9  10   11
+    numeros = inv.corriger([None, 1, 2, 3, 6, 7, None, 10, 11, 11, 12, 900])
+    bilan = inv.analyser(numeros)
+    assert numeros[-1] is None                       # 900 ne suit pas ses voisins : écarté
+    assert bilan["manquants"] == [4, 5]              # trou sans page sans numéro : sûr
+    assert bilan["a_verifier"] == [{"entre": (7, 10), "manquent": 1}]   # 8 et 9 attendus, une page sans numéro
+    assert bilan["doubles"] == [11]
+    assert inv._plages([4, 5, 9]) == "4 à 5, 9"

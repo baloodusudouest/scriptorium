@@ -11,6 +11,8 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## Prochaine étape
 
+0. **Décisions du 14/11/2026 après la sonde** (fin de `docs/dossier.md`) : Mistral d'abord avec contre-lecture Marker sur le PC, prise page par page, import d'un gros PDF avec inventaire des pages manquantes (`sonde/outils/inventaire.py`, testé sur un PDF synthétique). Prochaine étape : le conseil sur le dossier.
+
 1. **Sonde, tour 2** : compte rendu du tour 1 dans [`docs/sonde.md`](docs/sonde.md). Ce qu'il a montré : la préparation de l'image prime sur le moteur, la double page est sans doute trop juste pour les fiches denses, et Mistral invente sur les pages difficiles. La préparation version 2 (sens, recadrage, coupe au pli) a été essayée sur des réductions des photos du tour 1 : les huit pages sont bien coupées. Tour 2 : les mêmes photos et deux photos d'une seule page, plus la voie B.
 1. (rappel) **Sonde** (dossier, § 6 étape 0) : l'utilisateur la lance sur son PC avec 3 ou 4 pages riches (dont une double page iPhone) et renvoie `resultats/`. Clé Mistral créée (14/11/2026). Ensuite, rapport de sonde (`docs/sonde.md`), qui choisit le moteur et la voie. MinerU et PaddleOCR n'y sont pas : à ajouter seulement si Docling et Marker déçoivent.
 2. Passage du dossier et du rapport de sonde au conseil.

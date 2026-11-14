@@ -1,5 +1,10 @@
 # Journal des versions — Scriptorium
 
+## Inventaire et décisions — 14/11/2026
+
+- `sonde/outils/inventaire.py` (`docker compose run --rm inventaire`) : pages manquantes, à vérifier, en double, et pages sans numéro d'un PDF déjà scanné. La lecture du numéro imprimé se fait en local (taches d'encre lues une à une par Tesseract) ; le PDF est lu page par page.
+- Dossier : décisions prises après la sonde (Mistral d'abord avec contre-lecture locale, prise page par page, import d'un gros PDF, inventaire).
+
 ## Sonde, tour 2 — 14/11/2026
 
 - Préparation des pages, version 2 :

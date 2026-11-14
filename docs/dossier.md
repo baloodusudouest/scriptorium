@@ -219,6 +219,24 @@ Livraison choisie : **une seule** (1.0.0). Les étapes ci-dessous sont l'ordre d
 - Un test fige ce qui est écrit dans `bookdrop`. Il prouve aussi que rien n'y est écrit en lecture seule, ni par-dessus un fichier existant.
 - Tests d'écran sur PC et sur iPhone.
 
+## Décisions prises après la sonde (14/11/2026)
+
+Compte rendu : [`sonde.md`](sonde.md). Ce qui change par rapport au texte ci-dessus :
+
+- **Lecture : Mistral d'abord, le PC en contre-lecture.** Toutes les pages partent chez Mistral OCR (environ 0,30 à 0,60 € pour un livre de 300 pages), qui donne la structure et le texte. Le PC relit chaque page avec Marker (voie A, processeur). Les mots qui diffèrent entre les deux lectures deviennent les mots à relire. Ce choix remplace « PC d'abord, Mistral sur un clic » : sur une page propre, Mistral est nettement meilleur, et là où il se trompe de façon plausible, Marker lit juste. Le PC éteint ne bloque pas un livre : les pages attendent seulement leur contre-lecture.
+- **Prise page par page** (le téléphone dans le sens de la page, page entière dans le cadre) au lieu de la double page : les fiches denses perdent trop de netteté en double page. Le tour 2 de la sonde n'est pas fait ; la prise se réglera à l'essai.
+- **Import d'un livre déjà scanné, même gros** (un PDF de 400 Mo est attendu) :
+  - l'envoi se fait par morceaux, écrits sur le disque au fil de l'eau, avec reprise si la connexion coupe ; rien n'est gardé en mémoire ;
+  - le PDF est découpé en pages sur le NAS.
+- **Inventaire des pages manquantes** : Scriptorium lit le numéro imprimé de chaque page et liste :
+  - les pages manquantes ;
+  - les trous à vérifier ;
+  - les pages en double ;
+  - les pages sans numéro.
+
+  Chaque page manquante devient une tâche « à prendre » dans le livre. On la photographie à l'iPhone et elle **s'insère à sa place**, d'après son numéro. Une page en double peut être écartée. L'outil existe déjà dans la sonde (`sonde/outils/inventaire.py`).
+- **Voie B** (modèle de vision sur la carte AMD) : pas mesurée, mise de côté. Elle pourra remplacer Mistral plus tard si elle s'en approche.
+
 ## Questions ouvertes pour le conseil
 
 1. **Une seule livraison** pour une appli de cette taille, contre la règle du format commun (« ce qui protège d'abord »). Le risque est faible, puisque Scriptorium n'écrit que des fichiers neufs dans `bookdrop`. Faut-il quand même découper ?
@@ -226,5 +244,5 @@ Livraison choisie : **une seule** (1.0.0). Les étapes ci-dessous sont l'ordre d
 3. **EPUB et mise en page riche** : colonnes et encadrés deviennent linéaires dans un EPUB. Faut-il un réglage par livre (EPUB à mise en page fixe pour un beau livre), ou s'en tenir au choix de la page gardée en image ?
 4. **Seuils de doute** : comment éviter que la relecture « ciblée » devienne une relecture de chaque page sur les livres difficiles ? Et comment repérer les mots douteux avec un modèle de vision (voie B), qui ne donne pas de confiance par mot ?
 5. **PDF recomposé ou fac-similé** : le recomposé a été choisi. Faut-il garder en plus, dans le dossier du livre, un PDF des images de pages pour l'archive ?
-6. **Carte AMD** : la voie B ajoute un programme Windows hors de Docker. Le gain de vitesse ou de qualité vaut-il cette installation de plus, pour quelques livres par an ?
+6. **Dépendance à Mistral** : toutes les pages d'un livre partent en ligne. Que faire si l'API change, augmente ses prix ou ferme ? Le PDF importé de 400 Mo pose-t-il un souci de place ou de temps sur le NAS ?
 7. **Que manque-t-il ?** Par exemple : notes de bas de page sur deux pages, index, sommaire d'origine, lettrines et ornements, livres anciens en typographie d'époque.

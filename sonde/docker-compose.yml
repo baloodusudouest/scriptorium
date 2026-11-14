@@ -1,5 +1,6 @@
 # Sonde de Scriptorium — à lancer sur le PC, dans Docker Desktop, depuis ce dossier.
 # Chaque étape se lance à part (voir LISEZMOI.md) :
+#   docker compose run --rm inventaire  (pages manquantes d'un PDF déjà scanné, déposé dans livre/)
 #   docker compose run --rm preparer
 #   docker compose run --rm mistral
 #   docker compose run --rm vision      (LM Studio lancé sur le PC, voir LISEZMOI.md)
@@ -15,6 +16,10 @@ x-leger: &leger
   env_file: [{path: .env, required: false}]
 
 services:
+  inventaire:
+    <<: *leger
+    command: ["python", "inventaire.py"]
+
   preparer:
     <<: *leger
     command: ["python", "preparer.py"]
