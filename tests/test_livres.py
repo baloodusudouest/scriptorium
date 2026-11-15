@@ -162,6 +162,7 @@ def test_numero_corrige_a_la_main(client):
     v = client.post(f"/api/livres/{livre_id}/pages/2", json={"numero": 41}).json()
     assert [p["numero"] for p in v["liste_pages"]][1] == 41
     assert client.post(f"/api/livres/{livre_id}/pages/2", json={"numero": 0}).status_code == 422
+    assert client.post(f"/api/livres/{livre_id}/pages/2", json={"numero": "douze"}).status_code == 422
 
 
 # ---------------------------------------------------------------- lecture, fabrication, dépôt

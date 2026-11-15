@@ -202,3 +202,18 @@ def test_fiche_par_l_isbn_et_pdf_a5(navigateur, adresse):
     page.get_by_role("button", name="Prendre comme couverture").click()
     page.get_by_text("couverture du livre").wait_for()
     assert erreurs == []
+
+
+def test_numero_change_depuis_la_page(navigateur, adresse):
+    """0.4.2 : le numéro imprimé se corrige dans l'écran de la page."""
+    page, erreurs = ouvrir(navigateur, adresse, "pc")
+    page.get_by_text("Daiquiri et compagnie").click()
+    page.get_by_text("1. Les pages").wait_for()
+    page.locator("ul[aria-label='Pages du PDF'] a").nth(0).click()
+    champ = page.get_by_label("Numéro imprimé")
+    champ.wait_for()
+    champ.fill("1")
+    page.get_by_role("button", name="Enregistrer le numéro").click()
+    page.get_by_role("heading", name="Page 1").wait_for()
+    page.get_by_text("posé à la main").wait_for()
+    assert erreurs == []

@@ -371,7 +371,10 @@ def modifier_page(livre_id: int, rang: int, corps: dict = Body(...)):
         raise HTTPException(404, "Page inconnue.")
     if "numero" in corps:
         n = corps["numero"]
-        n = int(n) if n not in (None, "") else None
+        try:
+            n = int(n) if n not in (None, "") else None
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Le numéro de page doit être un nombre.") from None
         if n is not None and not 0 < n < 10000:
             raise HTTPException(422, "Numéro de page entre 1 et 9999.")
         base.ecrire("UPDATE pages SET numero = ?, numero_manuel = ? WHERE livre_id = ? AND rang = ?",

@@ -1,5 +1,11 @@
 # Journal des versions — Scriptorium
 
+## 0.4.2 — 15/11/2026 — numéro de page dans l'écran de la page
+
+- L'écran de relecture d'une page permet de changer son numéro imprimé (« Enregistrer le numéro » ; vide : sans numéro), avec son origine (« posé à la main » ou « lu par Mistral »), et d'écarter la page ou de la remettre dans le livre. Le titre et les boutons précédente/suivante suivent aussitôt.
+- Un numéro qui n'est pas un nombre est refusé proprement (422 au lieu d'une erreur du serveur).
+- Tests : 70 (numéro non numérique, numéro changé depuis l'écran de la page).
+
 ## 0.4.1 — 15/11/2026 — tuiles du bilan cliquables
 
 Demande de l'utilisateur, qui lisait « À vérifier : rien » comme « rien à vérifier avec le PC ».

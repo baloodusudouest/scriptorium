@@ -31,6 +31,12 @@
   let precedente = $derived(index > 0 ? l.liste_pages[index - 1] : null)
   let suivante = $derived(index >= 0 && index < (l?.liste_pages?.length ?? 0) - 1 ? l.liste_pages[index + 1] : null)
   let modifie = $derived(texte !== original)
+  let numero = $state('')            // numéro imprimé, modifiable ici (0.4.2)
+  let numeroPour = $state(null)      // rang dont le champ a été rempli : on ne l'écrase pas pendant la saisie
+  $effect(() => {
+    if (page && numeroPour !== page.rang) { numero = page.numero ?? ''; numeroPour = page.rang }
+  })
+  let numeroChange = $derived(page && String(numero).trim() !== String(page.numero ?? ''))
   let enLecture = $derived(page?.lecture === 'attente' && l?.etat === 'lecture' && l?.lecture_demandee)
   let aRelire = $derived(l?.bilan?.contre?.a_relire ?? [])
   let suivanteARelire = $derived.by(() => {
@@ -110,6 +116,11 @@
     const ecart = d.propose.length - d.lu.length
     doutes = doutes.map((x) => (x === d ? { ...x, pris: true } : x.debut > pos ? { ...x, debut: x.debut + ecart, fin: x.fin + ecart } : x))
   }
+  async function enregistrerNumero(e) {
+    e.preventDefault()
+    const n = String(numero).trim()
+    if (await geste('numero', `/api/livres/${id}/pages/${rang}`, { numero: n === '' ? null : Number(n) })) numero = page.numero ?? ''
+  }
   const relue = () => geste('relue', `/api/livres/${id}/pages/${rang}/relue`)
 
   function aller(p) {
@@ -142,6 +153,16 @@
         {#if page.rendu_choisi === 'image'}<Badge variant="outline">gardée en image</Badge>{/if}
         {#if page.ecartee}<Badge variant="outline">écartée</Badge>{/if}
       </p>
+      <form class="mt-3 flex flex-wrap items-center gap-2 text-sm" onsubmit={enregistrerNumero}>
+        <label for="numero-page" class="text-muted-foreground">Numéro imprimé</label>
+        <input id="numero-page" bind:value={numero} inputmode="numeric" placeholder="aucun"
+               class="h-9 w-20 rounded-lg border border-input bg-transparent px-2 outline-none focus:border-ring" />
+        <Button type="submit" size="sm" variant="outline" disabled={!numeroChange || attente === 'numero'}>Enregistrer le numéro</Button>
+        {#if page.numero_manuel}<span class="text-xs text-muted-foreground">posé à la main</span>
+        {:else if page.numero_mistral != null}<span class="text-xs text-muted-foreground">lu par Mistral</span>{/if}
+        <Button type="button" size="sm" variant="ghost" onclick={() => geste('ecarter', `/api/livres/${id}/pages/${rang}`, { ecartee: !page.ecartee })}
+                disabled={attente === 'ecarter'}>{page.ecartee ? 'Remettre dans le livre' : 'Écarter la page'}</Button>
+      </form>
     </div>
     <nav class="flex flex-wrap gap-2" aria-label="Pages voisines">
       {#if suivanteARelire}
