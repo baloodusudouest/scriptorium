@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 RACINE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RACINE))
 
-from app import main, mistral  # noqa: E402
+from app import contre, main, mistral  # noqa: E402
 from app.config import Config  # noqa: E402
 
 MDP = "demo-demo-demo"
@@ -75,6 +75,12 @@ def _remplir(TestClient, lecture) -> None:
                 c.post(f"/api/livres/{livre['id']}/lecture")
                 main.ETAT["travail"].tout_faire()
                 c.post(f"/api/livres/{livre['id']}/fabriquer")
+                # Contre-lecture simulée (le PC) : les pages 5 et 6 ont un mot que Marker lit autrement
+                for rang in range(1, 7):
+                    texte = "Recette\n45 ml de gin, 15 ml de vermouth.\nUn trait de bitters."
+                    if rang >= 5:
+                        texte = texte.replace("vermouth", "vermout")
+                    contre.enregistrer(main.ETAT["base"], livre["id"], rang, texte)
 
 
 def lancer(port: int = 8191, data: Path | None = None):
@@ -82,10 +88,12 @@ def lancer(port: int = 8191, data: Path | None = None):
     (data / "bookdrop").mkdir(parents=True, exist_ok=True)
     main.ETAT.clear()
     main.ETAT["cfg"] = Config(password=MDP, data=data / "data", static=RACINE / "app" / "static", attente_connexion=False,
-                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120)
+                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120,
+                              jeton_calcul="demo-jeton-du-pc")
     preparer(data)
     main.ETAT["cfg"] = Config(password=MDP, data=data / "data", static=RACINE / "app" / "static", attente_connexion=False,
-                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120)
+                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120,
+                              jeton_calcul="demo-jeton-du-pc")
     uvicorn.run(main.app, host="127.0.0.1", port=port, log_level="warning")
 
 

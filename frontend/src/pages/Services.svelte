@@ -6,6 +6,7 @@
   import Sparkles from '@lucide/svelte/icons/sparkles'
   import Library from '@lucide/svelte/icons/library'
   import HardDrive from '@lucide/svelte/icons/hard-drive'
+  import Cpu from '@lucide/svelte/icons/cpu'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
 
@@ -24,9 +25,20 @@
   }
   onMount(lire)
 
+  // « il y a 3 min » : dernier passage du PC de calcul
+  function depuis(iso) {
+    if (!iso) return 'jamais vu'
+    const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+    if (min < 2) return 'vu à l\'instant'
+    if (min < 120) return `vu il y a ${min} min`
+    if (min < 2880) return `vu il y a ${Math.round(min / 60)} h`
+    return `vu le ${new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+  }
   const go = (o) => (o / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 1 })
   let tuiles = $derived(s ? [
     { id: 'mistral', nom: 'Mistral OCR', icone: Sparkles, ok: s.mistral.cle, etat: s.mistral.cle ? `${s.mistral.facturees} pages facturées` : 'aucune clé' },
+    { id: 'pc', nom: 'PC de calcul', icone: Cpu, ok: s.pc.configure && !!s.pc.vu_le && Date.now() - new Date(s.pc.vu_le) < 600000,
+      etat: s.pc.configure ? `${depuis(s.pc.vu_le)} · ${s.pc.en_attente} page${s.pc.en_attente > 1 ? 's' : ''} en attente` : 'aucun jeton' },
     { id: 'grimmory', nom: 'Grimmory', icone: Library, ok: s.grimmory.inscriptible, etat: s.grimmory.inscriptible ? 'dépôt possible' : 'dossier inaccessible' },
     { id: 'disque', nom: 'Dossier de données', icone: HardDrive, ok: s.disque.inscriptible, etat: `${go(s.disque.libre)} Go libres` },
   ] : [])
@@ -38,7 +50,7 @@
 
 {#if message}<p class="mb-4 text-sm text-destructive" role="alert">{message}</p>{/if}
 
-<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
   {#each tuiles as t (t.id)}
     {@const Icone = t.icone}
     <button type="button" aria-pressed={choisi === t.id} onclick={() => (choisi = choisi === t.id ? null : t.id)}
@@ -65,6 +77,22 @@
       <Button variant="outline" onclick={verifierMistral}>Vérifier</Button>
       {#if verification}<span class="text-sm {verification.ok === false ? 'text-destructive' : ''}" role="status">{verification.message}</span>{/if}
     </div>
+  </section>
+{:else if s && choisi === 'pc'}
+  <section class="mt-4 max-w-3xl rounded-2xl border bg-card p-5" aria-label="PC de calcul">
+    <h2 class="text-lg font-semibold">PC de calcul</h2>
+    <p class="mt-1 text-sm text-muted-foreground">
+      Le PC relit chaque page avec Marker, sur son processeur, et rend le texte. Les mots qui diffèrent de la lecture de Mistral
+      deviennent les mots à relire. Il vient chercher le travail lui-même, avec son jeton (SCRIPTORIUM_JETON_CALCUL) ; éteint, il ne bloque rien.
+    </p>
+    {#if s.pc.configure}
+      <p class="mt-2 text-sm">{s.pc.vu_le ? `Dernier passage : ${new Date(s.pc.vu_le).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}` : 'Le PC n\'est encore jamais passé.'}
+        {#if s.pc.moteur} · {s.pc.moteur}{/if} · {s.pc.en_attente} page{s.pc.en_attente > 1 ? 's' : ''} en attente.</p>
+    {:else}
+      <p class="mt-2 text-sm">Aucun jeton dans la stack : la porte du PC est fermée.</p>
+    {/if}
+    <p class="mt-2 text-sm text-muted-foreground">Mise en route : dossier <code>pc/</code> du dépôt (fichier <code>LISEZMOI.md</code>), lancé dans Docker Desktop.</p>
+    <div class="mt-3"><Button variant="outline" onclick={lire}>Vérifier</Button></div>
   </section>
 {:else if s && choisi === 'grimmory'}
   <section class="mt-4 max-w-3xl rounded-2xl border bg-card p-5" aria-label="Grimmory">

@@ -3,7 +3,8 @@
 Livraison 0.1 : import d'un PDF (envoi par morceaux), découpe en pages et inventaire des pages manquantes,
 lecture par Mistral OCR, EPUB recomposé simple et PDF d'archive, dépôt dans le bookdrop de Grimmory.
 
-Routes publiques : /health, /api/session, /api/connexion. Tout le reste demande la session.
+Routes publiques : /health, /api/session, /api/connexion. Tout le reste demande la session, sauf la porte
+du PC de calcul (/calcul/…), gardée par son propre jeton (SCRIPTORIUM_JETON_CALCUL ; vide : porte fermée).
 Écritures hors de chez Scriptorium (gardées par exiger_ecriture, journalisées) :
     - l'envoi des pages à Mistral (elles sortent de la maison et la lecture est payante) ;
     - le dépôt dans le bookdrop de Grimmory (jamais par-dessus un fichier existant).
@@ -11,6 +12,7 @@ Routes publiques : /health, /api/session, /api/connexion. Tout le reste demande 
 from __future__ import annotations
 
 import asyncio
+import hmac
 import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,7 +20,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, capture, fabrication, inventaire, mistral
+from . import __version__, capture, contre, fabrication, inventaire, mistral
 from .auth import COMMUN, DUREE, Sessions
 from .base import Base, maintenant
 from .config import APPLI, Config, charger
@@ -153,7 +155,7 @@ def _livre(livre_id: int) -> dict:
 
 def _pages(livre_id: int) -> list[dict]:
     return ETAT["base"].lire("SELECT rang, ordre, source, numero_lu, numero_mistral, numero, numero_manuel, ecartee, lecture, "
-                             "lecture_erreur, pages_facturees, rendu_choisi, texte_main FROM pages WHERE livre_id = ? ORDER BY ordre", livre_id)
+                             "lecture_erreur, pages_facturees, rendu_choisi, texte_main, contre, contre_erreur, doutes, accord, relue FROM pages WHERE livre_id = ? ORDER BY ordre", livre_id)
 
 
 def _bilan(livre: dict, pages: list[dict]) -> dict:
@@ -163,10 +165,13 @@ def _bilan(livre: dict, pages: list[dict]) -> dict:
     inv["sans_numero"] = [gardees[i]["rang"] for i in inv["sans_numero"]]
     compte = {k: sum(1 for p in gardees if p["lecture"] == k) for k in ("attente", "faite", "douteuse", "erreur")}
     a_lire = compte["attente"] + compte["erreur"]
+    contre_compte = {k: sum(1 for p in gardees if p["contre"] == k and not p["texte_main"]) for k in ("attente", "calcul", "faite", "erreur")}
     cfg = ETAT["cfg"]
     return {
         "pages": len(pages), "gardees": len(gardees), "ecartees": len(pages) - len(gardees),
         "inventaire": inv, "lecture": compte,
+        "contre": {**contre_compte, "a_relire": [p["rang"] for p in gardees if contre.a_relire(p)],
+                   "pc": bool(ETAT["cfg"].jeton_calcul)},
         "estimation": {"pages": a_lire, "dollars": round(a_lire * cfg.prix_page, 2)},
         "facturees": sum(p["pages_facturees"] for p in pages),
         "fabrique": bool(livre["epub"]) and (ETAT["base"].dossier(livre["id"]) / "sortie" / livre["epub"]).exists(),
@@ -296,8 +301,12 @@ def image_page(livre_id: int, rang: int, cote: int = 0):
 
 @app.get("/api/livres/{livre_id}/pages/{rang}/texte")
 def texte_page(livre_id: int, rang: int):
-    chemin = ETAT["base"].dossier(livre_id) / "lu" / f"{rang:04d}.md"
-    return {"markdown": chemin.read_text(encoding="utf-8") if chemin.is_file() else ""}
+    """Texte gardé de la page, contre-lecture de Marker et mots qui diffèrent (positions dans le texte gardé)."""
+    dossier = ETAT["base"].dossier(livre_id)
+    chemin, marker = dossier / "lu" / f"{rang:04d}.md", dossier / "lu" / f"{rang:04d}.marker.md"
+    return {"markdown": chemin.read_text(encoding="utf-8") if chemin.is_file() else "",
+            "marker": marker.read_text(encoding="utf-8") if marker.is_file() else None,
+            "comparaison": contre.lire_doutes(dossier, rang)}
 
 
 @app.post("/api/livres/{livre_id}/pages/{rang}")
@@ -392,8 +401,19 @@ def enregistrer_texte(livre_id: int, rang: int, corps: dict = Body(...)):
     lu = ETAT["base"].dossier(livre_id) / "lu"
     lu.mkdir(parents=True, exist_ok=True)
     (lu / f"{rang:04d}.md").write_text(texte, encoding="utf-8")
-    ETAT["base"].ecrire("UPDATE pages SET lecture = 'faite', lecture_erreur = '', texte_main = 1 WHERE livre_id = ? AND rang = ?",
-                        livre_id, rang)
+    ETAT["base"].ecrire("UPDATE pages SET lecture = 'faite', lecture_erreur = '', texte_main = 1, relue = 1 "
+                        "WHERE livre_id = ? AND rang = ?", livre_id, rang)
+    contre.comparer_page(ETAT["base"], livre_id, rang)
+    return _vue(_livre(livre_id), avec_pages=True)
+
+
+@app.post("/api/livres/{livre_id}/pages/{rang}/relue")
+def marquer_relue(livre_id: int, rang: int, corps: dict = Body(default={})):
+    """« Page relue » : ses mots à relire ne sont plus comptés (le texte de Mistral est gardé tel quel)."""
+    _livre(livre_id)
+    _page(livre_id, rang)
+    ETAT["base"].ecrire("UPDATE pages SET relue = ? WHERE livre_id = ? AND rang = ?",
+                        0 if corps.get("relue") is False else 1, livre_id, rang)
     return _vue(_livre(livre_id), avec_pages=True)
 
 
@@ -406,8 +426,8 @@ def relire_page(livre_id: int, rang: int):
         raise HTTPException(409, "Aucune clé Mistral dans la stack (SCRIPTORIUM_MISTRAL_CLE).")
     exiger_ecriture("envoyé à Mistral")
     base: Base = ETAT["base"]
-    base.ecrire("UPDATE pages SET lecture = 'attente', lecture_erreur = '', texte_main = 0, ecartee = 0 WHERE livre_id = ? AND rang = ?",
-                livre_id, rang)
+    base.ecrire("UPDATE pages SET lecture = 'attente', lecture_erreur = '', texte_main = 0, relue = 0, ecartee = 0 "
+                "WHERE livre_id = ? AND rang = ?", livre_id, rang)
     base.ecrire("UPDATE livres SET etat = 'lecture', lecture_demandee = 1, erreur = '' WHERE id = ?", livre_id)
     return _vue(_livre(livre_id), avec_pages=True)
 
@@ -423,6 +443,11 @@ def tourner_page(livre_id: int, rang: int):
     capture.tourner(chemin, 90)
     if page["lecture"] != "attente" and not page["texte_main"]:
         ETAT["base"].ecrire("UPDATE pages SET lecture = 'attente' WHERE id = ?", page["id"])
+    # L'image a changé : la contre-lecture est à refaire
+    lu = ETAT["base"].dossier(livre_id) / "lu"
+    for f in (lu / f"{rang:04d}.marker.md", lu / f"{rang:04d}.doutes.json"):
+        f.unlink(missing_ok=True)
+    ETAT["base"].ecrire("UPDATE pages SET contre = 'attente', doutes = 0, accord = NULL WHERE id = ?", page["id"])
     return _vue(_livre(livre_id), avec_pages=True)
 
 
@@ -525,6 +550,49 @@ def deposer(livre_id: int):
     return _vue(_livre(livre_id))
 
 
+# ================================================================ porte du PC de calcul (contre-lecture)
+
+def _jeton_pc(request: Request) -> None:
+    attendu = ETAT["cfg"].jeton_calcul
+    if not attendu:
+        raise HTTPException(404, "Porte du PC de calcul fermée (SCRIPTORIUM_JETON_CALCUL vide).")
+    donne = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if not hmac.compare_digest(donne.encode(), attendu.encode()):
+        raise HTTPException(401, "Jeton du PC de calcul refusé.")
+    contre.signaler_passage(ETAT["base"], request.headers.get("x-moteur", ""))
+
+
+@app.get("/calcul/travail")
+def calcul_travail(request: Request):
+    """Le PC demande une page à relire. 204 : rien à faire, il repassera."""
+    _jeton_pc(request)
+    page = contre.prochaine_page(ETAT["base"])
+    if not page:
+        return Response(status_code=204)
+    return {"livre_id": page["livre_id"], "rang": page["rang"], "langue": page["langue"],
+            "image": f"/calcul/pages/{page['livre_id']}/{page['rang']}.jpg"}
+
+
+@app.get("/calcul/pages/{livre_id}/{rang}.jpg")
+def calcul_image(livre_id: int, rang: int, request: Request):
+    _jeton_pc(request)
+    chemin = ETAT["base"].dossier(livre_id) / "pages" / f"{rang:04d}.jpg"
+    if not chemin.is_file():
+        raise HTTPException(404, "Page inconnue.")
+    return FileResponse(chemin, media_type="image/jpeg")
+
+
+@app.post("/calcul/pages/{livre_id}/{rang}")
+def calcul_rendu(livre_id: int, rang: int, request: Request, corps: dict = Body(...)):
+    """Le PC rend sa lecture : {"markdown": "..."} ou {"erreur": "..."}."""
+    _jeton_pc(request)
+    markdown = corps.get("markdown")
+    if markdown is not None and (not isinstance(markdown, str) or len(markdown) > 400_000):
+        raise HTTPException(422, "Texte absent ou trop long.")
+    contre.enregistrer(ETAT["base"], livre_id, rang, markdown, str(corps.get("erreur") or ""))
+    return {"ok": True}
+
+
 # ================================================================ services, réglages
 
 @app.get("/api/services")
@@ -535,6 +603,8 @@ def services():
         "lecture_seule": cfg.lecture_seule,
         "mistral": {"cle": bool(cfg.mistral_cle), "modele": cfg.mistral_modele, "prix_page": cfg.prix_page,
                     "facturees": ETAT["base"].un("SELECT COALESCE(SUM(pages_facturees), 0) AS n FROM pages")["n"]},
+        "pc": {"configure": bool(cfg.jeton_calcul), "vu_le": ETAT["base"].memo("pc_vu_le"),
+               "moteur": ETAT["base"].memo("pc_moteur"), "en_attente": contre.pages_en_attente(ETAT["base"])},
         "grimmory": {"configure": bool(cfg.bookdrop), "inscriptible": _inscriptible(cfg.bookdrop)},
         "disque": {"total": disque.total, "libre": disque.free, "inscriptible": _inscriptible(cfg.data)},
         "travail": ETAT["travail"].en_cours,

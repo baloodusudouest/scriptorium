@@ -142,8 +142,26 @@ def test_relecture_d_une_page(navigateur, adresse, taille):
     page.get_by_role("button", name="Garder en image").click()
     page.get_by_text("gardée en image").wait_for()
     page.get_by_role("button", name="Recomposer (texte)").click()
-    page.get_by_role("button", name="Page suivante").click()
+    page.get_by_role("button", name="Page suivante", exact=True).click()
     page.wait_for_url(re.compile(rf"/page/{rang + 1}$"))
     page.get_by_role("link", name="Daiquiri et compagnie").click()
     page.get_by_text("corrigée").first.wait_for()
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_mots_a_relire_de_la_contre_lecture(navigateur, adresse, taille):
+    """0.3.1 : la page signalée par la contre-lecture montre le mot douteux ; « Prendre » met la lecture de Marker."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.get_by_text("Daiquiri et compagnie").click()
+    page.get_by_text(re.compile(r"pages? à relire")).wait_for()
+    rang = 5 if taille == "pc" else 6             # serveur commun aux deux tailles : une page chacune
+    page.locator("ul[aria-label='Pages du PDF'] a").nth(rang - 1).click()
+    page.get_by_role("heading", name="1 mot à relire").wait_for()
+    sans_debordement(page)
+    page.get_by_role("button", name="Remplacer « vermouth » par « vermout »").click()
+    zone = page.get_by_label(re.compile("Texte de la page"))
+    assert "vermout." in zone.input_value()
+    page.get_by_role("button", name="Enregistrer le texte").click()
+    page.get_by_text(re.compile("^Page relue")).wait_for()
     assert erreurs == []

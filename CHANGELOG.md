@@ -1,5 +1,16 @@
 # Journal des versions — Scriptorium
 
+## 0.3.1 — 15/11/2026 — contre-lecture par le PC (fin de la 0.3)
+
+- **Contre-lecture par Marker sur le PC** : nouveau dossier `pc/` (`calcul.yml` pour Docker Desktop, `calcul.py`, `Dockerfile`, `LISEZMOI.md`). Le conteneur demande une page au NAS toutes les 30 s, la lit avec Marker 2.2 sur le processeur (mode « fast », modèles chargés une fois et gardés dans un volume) et renvoie le texte. Image publiée sur `ghcr.io/baloodusudouest/scriptorium-calcul` par une action à part (seulement quand `pc/` change).
+- **Porte du PC** (`/calcul/travail`, `/calcul/pages/…`) : hors session, gardée par son propre jeton `SCRIPTORIUM_JETON_CALCUL` (comparaison à temps constant) ; jeton vide : porte fermée (404). Le PC ne peut que prendre une page et rendre sa lecture. Une page prise et jamais rendue (PC éteint en route) est reproposée au bout de 15 minutes. Les pages déjà lues par Mistral passent en premier.
+- **Mots à relire** (`app/comparaison.py`) : le texte de Mistral et celui de Marker sont comparés mot à mot (ponctuation, mise en forme, numéros de page, lettres de marge et césures ignorés). Seules les substitutions courtes (1 à 4 mots de chaque côté) deviennent des mots à relire ; si les deux lectures se ressemblent trop peu (accord < 0,5), toute la page est signalée. La comparaison se refait à chaque nouveau texte (lecture Mistral, contre-lecture, texte corrigé).
+- **Écran de relecture** : au-dessus du texte, la liste des mots à relire (« vermouth — Marker lit vermout ») ; toucher un mot le sélectionne dans le texte, « Prendre » met la lecture de Marker à sa place. « Page relue, rien à changer » ou « Enregistrer le texte » sortent la page de la liste. « Page suivante à relire » saute aux pages signalées. La lecture complète de Marker est dépliable sous le texte.
+- **Livre** : l'étape 2 dit où en est la contre-lecture et combien de pages sont à relire (« Relire la première ») ; les vignettes signalées portent « n mots à relire ».
+- **Connexion** : tuile « PC de calcul » (dernier passage, moteur, pages en attente).
+- Une page tournée perd sa contre-lecture, refaite par le PC.
+- Tests : 56 au total (comparaison, porte et jeton, PC simulé de bout en bout avec un faux Marker, page abandonnée reproposée, page illisible par le PC, relue ou corrigée, écran des mots à relire sur PC et iPhone). **Marker lui-même n'est pas testé ici** (trop lourd pour la CI) : l'essai réel se fait sur le PC.
+
 ## 0.3.0 — 15/11/2026 — reprise des pages manquantes et relecture page par page
 
 Deux demandes de l'utilisateur, avancées avant la contre-lecture Marker (qui reste à faire).

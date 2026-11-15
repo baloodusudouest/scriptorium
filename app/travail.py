@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import inventaire, mistral
+from . import contre, inventaire, mistral
 from .base import Base
 
 log = logging.getLogger("scriptorium.travail")
@@ -143,6 +143,9 @@ class Travail:
                              etat, resultat.douteuse, resultat.numero, resultat.pages_facturees, p["id"])
             if resultat.numero is not None:
                 self.base.ecrire("UPDATE pages SET numero = ? WHERE id = ? AND numero_manuel = 0", resultat.numero, p["id"])
+            # Nouveau texte : la page est à revoir, et sa contre-lecture (si le PC l'a déjà faite) est comparée
+            self.base.ecrire("UPDATE pages SET relue = 0 WHERE id = ?", p["id"])
+            contre.comparer_page(self.base, livre_id, rang)
             lues += 1
             facturees += resultat.pages_facturees
             fini = self.base.un("SELECT COUNT(*) AS n FROM pages WHERE livre_id = ? AND ecartee = 0 AND lecture IN ('faite', 'douteuse')", livre_id)["n"]

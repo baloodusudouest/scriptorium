@@ -24,6 +24,7 @@
   let numeroSaisi = $state('')
   let suppression = $state(false)
   let lienEssai = $state('')
+  let aRelire = $derived(new Set(l?.bilan?.contre?.a_relire ?? []))
   let numeroReprise = $state('')      // reprise d'une page dont le trou n'est pas montré (fin du livre, doute)
   let photoInput                      // champ fichier caché : ouvre l'appareil photo sur iPhone
   let photoNumero = null
@@ -62,7 +63,9 @@
   onMount(() => {
     lire()
     const t = setInterval(() => { if (l && (l.etat === 'decoupe' || (l.etat === 'lecture' && l.lecture_demandee))) lire() }, 2500)
-    return () => clearInterval(t)
+    // Pendant la contre-lecture par le PC (lente : 10 à 20 s par page), un coup d'œil toutes les 20 s suffit
+    const c = setInterval(() => { const k = l?.bilan?.contre; if (k?.pc && k.attente + k.calcul > 0) lire() }, 20000)
+    return () => { clearInterval(t); clearInterval(c) }
   })
 
   async function geste(nom, chemin, corps) {
@@ -236,7 +239,9 @@
                           onclick={() => modifierPage(it.rang, { ecartee: !it.ecartee })}>{it.ecartee ? 'Remettre' : 'Écarter'}</button>
                 {/if}
               </div>
-              {#if !it.ecartee && (it.lecture !== 'attente' || it.rendu_choisi === 'image')}
+              {#if aRelire.has(it.rang)}
+                <span class="text-xs font-medium text-primary">{it.doutes ? `${it.doutes} mot${it.doutes > 1 ? 's' : ''} à relire` : 'lectures divergentes'}</span>
+              {:else if !it.ecartee && (it.lecture !== 'attente' || it.rendu_choisi === 'image')}
                 <span class="text-xs {it.lecture === 'erreur' ? 'text-destructive' : 'text-muted-foreground'}" title={it.lecture_erreur}>
                   {it.rendu_choisi === 'image' ? 'gardée en image' : it.texte_main ? 'corrigée' : lectureNom[it.lecture]}</span>
               {/if}
@@ -278,6 +283,24 @@
             <p class="mt-2 text-sm text-muted-foreground">Une page que Mistral rend de façon douteuse entre dans le livre en image : le livre reste complet.</p>
           {/if}
           {#if l.erreur}<p class="mt-2 text-sm text-destructive" role="alert">{l.erreur}</p>{/if}
+          {#if b.contre}
+            <div class="mt-3 border-t pt-3 text-sm">
+              {#if b.contre.pc}
+                <p class="text-muted-foreground">
+                  Contre-lecture par le PC : {b.contre.faite} page{b.contre.faite > 1 ? 's' : ''} relue{b.contre.faite > 1 ? 's' : ''}
+                  · {b.contre.attente + b.contre.calcul} en attente{#if b.contre.erreur} · {b.contre.erreur} en erreur{/if}
+                </p>
+                {#if b.contre.a_relire.length}
+                  <p class="mt-2 flex flex-wrap items-center gap-3">
+                    <span>{b.contre.a_relire.length} page{b.contre.a_relire.length > 1 ? 's' : ''} à relire : Mistral et Marker n'y lisent pas les mêmes mots.</span>
+                    <Button size="sm" href={`#/livre/${id}/page/${b.contre.a_relire[0]}`}>Relire la première</Button>
+                  </p>
+                {/if}
+              {:else}
+                <p class="text-muted-foreground">Pas de contre-lecture : aucun jeton pour le PC de calcul dans la stack (voir Connexion).</p>
+              {/if}
+            </div>
+          {/if}
           {#if b.estimation.pages}
             <div class="mt-4 flex flex-wrap items-center gap-3">
               <Button onclick={() => geste('lire', `/api/livres/${id}/lecture`)} disabled={lectureSeule || attente === 'lire'}>

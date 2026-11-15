@@ -3,7 +3,9 @@
 Fichiers d'un livre : <data>/livres/<id>/
     source.pdf          le PDF importé (source.pdf.partiel pendant l'envoi)
     pages/0001.jpg      les pages découpées, dans l'ordre du PDF
-    lu/0001.md          le texte rendu par Mistral pour la page
+    lu/0001.md          le texte rendu par Mistral pour la page (ou corrigé à la main)
+    lu/0001.marker.md   la contre-lecture faite par Marker sur le PC (0.3.1)
+    lu/0001.doutes.json les mots qui diffèrent entre les deux lectures (0.3.1)
     lu/images/…         les illustrations découpées par Mistral
     sortie/             l'EPUB et le PDF d'archive fabriqués
 """
@@ -43,6 +45,10 @@ CREATE TABLE IF NOT EXISTS pages (
     lecture_erreur TEXT NOT NULL DEFAULT '',
     pages_facturees INTEGER NOT NULL DEFAULT 0,
     UNIQUE (livre_id, rang)
+);
+CREATE TABLE IF NOT EXISTS memo (
+    cle TEXT PRIMARY KEY,                 -- pc_vu_le, pc_moteur : dernier passage du PC de calcul
+    valeur TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS journal (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,6 +96,30 @@ class Base:
             self._cnx.execute("ALTER TABLE pages ADD COLUMN rendu_choisi TEXT NOT NULL DEFAULT 'auto'")
         if "texte_main" not in colonnes:       # 0.3.0 : texte corrigé à la relecture (Mistral ne l'écrase plus)
             self._cnx.execute("ALTER TABLE pages ADD COLUMN texte_main INTEGER NOT NULL DEFAULT 0")
+        nouvelles = {   # 0.3.1 : contre-lecture par Marker sur le PC
+            "contre": "TEXT NOT NULL DEFAULT 'attente'",     # attente, calcul, faite, erreur
+            "contre_depuis": "REAL NOT NULL DEFAULT 0",      # heure (epoch) où le PC a pris la page
+            "contre_erreur": "TEXT NOT NULL DEFAULT ''",
+            "doutes": "INTEGER NOT NULL DEFAULT 0",          # mots qui diffèrent entre les deux lectures
+            "accord": "REAL",                                # ressemblance des deux lectures (0 à 1)
+            "relue": "INTEGER NOT NULL DEFAULT 0",           # page relue : ses doutes ne sont plus comptés
+        }
+        for nom, definition in nouvelles.items():
+            if nom not in colonnes:
+                self._cnx.execute(f"ALTER TABLE pages ADD COLUMN {nom} {definition}")
+        colonnes = {r[1] for r in self._cnx.execute("PRAGMA table_info(livres)")}
+        nouvelles = {   # 0.4.0 : fiche par l'ISBN, couverture, PDF A5
+            "editeur": "TEXT NOT NULL DEFAULT ''",
+            "annee": "TEXT NOT NULL DEFAULT ''",
+            "isbn": "TEXT NOT NULL DEFAULT ''",
+            "couverture": "INTEGER",                         # rang de la page qui sert de couverture
+            "pdf": "TEXT NOT NULL DEFAULT ''",               # nom du PDF A5 fabriqué
+            "pdf_demande": "INTEGER NOT NULL DEFAULT 0",
+            "pdf_erreur": "TEXT NOT NULL DEFAULT ''",
+        }
+        for nom, definition in nouvelles.items():
+            if nom not in colonnes:
+                self._cnx.execute(f"ALTER TABLE livres ADD COLUMN {nom} {definition}")
 
     # ------------------------------------------------------------ accès bas niveau
     def lire(self, sql: str, *args) -> list[dict]:
@@ -114,6 +144,15 @@ class Base:
     def fermer(self) -> None:
         with self._verrou:
             self._cnx.close()
+
+    def memo(self, cle: str, valeur: str | None = None) -> str:
+        """Petite mémoire clé/valeur (dernier passage du PC de calcul)."""
+        if valeur is not None:
+            self.ecrire("INSERT INTO memo (cle, valeur) VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur",
+                        cle, valeur)
+            return valeur
+        r = self.un("SELECT valeur FROM memo WHERE cle = ?", cle)
+        return r["valeur"] if r else ""
 
     # ------------------------------------------------------------ dossiers
     def dossier(self, livre_id: int) -> Path:

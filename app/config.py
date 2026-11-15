@@ -25,6 +25,7 @@ class Config:
     prix_page: float = 0.002              # estimation affichée (dollars par page), réglable
     bookdrop: Path | None = None          # dossier d'import de Grimmory, monté en écriture
     dpi: int = 200                        # définition des pages découpées dans un PDF
+    jeton_calcul: str = ""                # jeton du PC de calcul (contre-lecture Marker) ; vide : porte /calcul fermée
     travail_auto: bool = True             # tâche de fond (coupée dans les tests, qui la lancent à la main)
 
 
@@ -44,4 +45,5 @@ def charger() -> Config:
         prix_page=float(os.environ.get("SCRIPTORIUM_PRIX_PAGE", "0.002") or 0.002),
         bookdrop=Path(bookdrop) if bookdrop else None,
         dpi=int(os.environ.get("SCRIPTORIUM_DPI", "200") or 200),
+        jeton_calcul=os.environ.get("SCRIPTORIUM_JETON_CALCUL", "").strip(),
     )

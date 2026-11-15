@@ -1,0 +1,19 @@
+# Contre-lecture de Scriptorium sur le PC de calcul (Docker Desktop).
+# Ce fichier ne va PAS dans la stack du NAS : il se lance sur le PC.
+#   1. Copier .env.exemple en .env à côté de ce fichier et le remplir.
+#   2. docker compose -f calcul.yml up -d
+#   3. docker compose -f calcul.yml logs -f   (le premier lancement télécharge les modèles, environ 2 Go)
+# Le PC peut être éteint : les pages attendent seulement leur contre-lecture.
+services:
+  calcul:
+    image: ghcr.io/baloodusudouest/scriptorium-calcul:latest
+    container_name: scriptorium-calcul
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - modeles:/cache
+    # Le calcul prend le processeur : on le laisse aux autres programmes du PC quand ils en ont besoin
+    cpu_shares: 256
+
+volumes:
+  modeles:

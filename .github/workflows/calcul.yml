@@ -1,0 +1,38 @@
+# Image de la contre-lecture sur le PC (pc/), publiée sur ghcr.io quand pc/ change
+name: Image du PC de calcul
+on:
+  push:
+    branches: [main]
+    paths: ["pc/**", ".github/workflows/calcul.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # torch + Marker : image lourde, on fait de la place sur la machine de construction
+      - name: Place sur le disque
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Étiquettes de l'image
+        id: etiquettes
+        run: |
+          version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' pc/calcul.py)
+          depot=ghcr.io/${{ github.repository_owner }}/scriptorium-calcul
+          echo "tags=$depot:latest,$depot:$version,$depot:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: pc
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.etiquettes.outputs.tags }}
+          cache-from: type=gha,scope=calcul
+          cache-to: type=gha,mode=max,scope=calcul
