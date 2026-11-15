@@ -54,6 +54,36 @@ def lisible(isbn: str) -> str:
     return f"{isbn[:3]}-{isbn[3:]}" if len(isbn) == 13 else isbn
 
 
+def lire_code_barres(contenu: bytes) -> list[str]:
+    """ISBN lus sur la photo d'un code-barres (EAN-13 978/979 du dos du livre), dans l'ordre, sans doublon.
+    Lu sur le NAS par zxing-cpp : la photo vient du champ « appareil photo » de l'iPhone, sans HTTPS ni
+    lecteur dans Safari. Le petit code du prix (EAN-5) à côté est ignoré."""
+    import io
+
+    import zxingcpp
+    from PIL import Image, ImageOps, UnidentifiedImageError
+
+    try:
+        with Image.open(io.BytesIO(contenu)) as im:
+            im = ImageOps.exif_transpose(im).convert("L")
+    except (UnidentifiedImageError, OSError) as e:
+        raise ValueError("photo illisible") from e
+    essais = [im]
+    if max(im.size) > 2000:                     # une photo de 12 Mpx : on essaie aussi en plus petit
+        petite = im.copy()
+        petite.thumbnail((2000, 2000))
+        essais.insert(0, petite)
+    trouves: list[str] = []
+    for image in essais:
+        for code in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.EAN13):
+            n = isbn13(code.text)
+            if n and n not in trouves:
+                trouves.append(n)
+        if trouves:
+            break
+    return trouves
+
+
 # ---------------------------------------------------------------- recherche
 
 def _auteur_bnf(brut: str) -> str:

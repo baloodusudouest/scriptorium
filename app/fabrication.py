@@ -74,10 +74,88 @@ def lister_ingredients(texte: str) -> str:
     return "\n\n".join(b for b in sortie if b)
 
 
+_MARQUE = re.compile(r"^\s*(\d{1,2})\s*[.)]?\s*$")          # « 1. » seul sur sa ligne
+_MARQUE_SANS_POINT = re.compile(r"^\s*(\d{1,2})\s+(?=[^\W\d_])(.*)$")   # « 1 Verser le gin »
+
+
+def _suite_depuis_un(nombres: list[int]) -> bool:
+    return len(nombres) >= 2 and nombres == list(range(1, len(nombres) + 1))
+
+
+def reparer_listes(texte: str) -> str:
+    """Listes numérotées mal rendues par la lecture (0.4.3). Constat : dans un essai, l'« ordre de préparation »
+    d'un livre de cocktails est arrivé dans l'EPUB avec ses seuls numéros. Trois formes sont remises en liste :
+
+    - le numéro seul sur sa ligne, son texte sur la ligne suivante (« 1. » puis « Verser le gin ») ;
+    - les numéros en colonne, tous d'abord, puis les textes dans l'ordre (mise en page à deux colonnes) ;
+    - « 1 Verser le gin », sans point (mais pas « 1 trait d'amer », qui est un ingrédient).
+
+    Seule une suite 1, 2, 3… est touchée : un numéro de page isolé (« 72 ») ne ressemble pas à une liste.
+    """
+    lignes = texte.splitlines()
+    marques = []
+    for i, l in enumerate(lignes):     # la suite 1, 2, 3… seulement (un numéro de page en fin de page n'en fait pas partie)
+        if (m := _MARQUE.match(l)) and int(m.group(1)) == len(marques) + 1:
+            marques.append((i, int(m.group(1))))
+    if _suite_depuis_un([n for _, n in marques]):
+        premier, dernier = marques[0][0], marques[-1][0]
+        en_colonne = all(not lignes[k].strip() or _MARQUE.match(lignes[k]) for k in range(premier, dernier + 1))
+        if en_colonne:
+            # Les textes qui suivent la colonne, un paragraphe par numéro
+            paragraphes, courant, fin = [], [], dernier + 1
+            for k in range(dernier + 1, len(lignes)):
+                l = lignes[k].strip()
+                if l.startswith("#") or (not l and courant and len(paragraphes) + 1 == len(marques)):
+                    if courant:
+                        paragraphes.append(" ".join(courant))
+                        courant = []
+                    fin = k
+                    break
+                if not l:
+                    if courant:
+                        paragraphes.append(" ".join(courant))
+                        courant = []
+                    continue
+                courant.append(l)
+                fin = k + 1
+            if courant:
+                paragraphes.append(" ".join(courant))
+            if len(paragraphes) >= len(marques):
+                items = [f"{n}. {paragraphes[j]}" for j, (_, n) in enumerate(marques)]
+                reste = paragraphes[len(marques):]
+                lignes = lignes[:premier] + items + ([""] + reste if reste else []) + lignes[fin:]
+                texte = "\n".join(lignes)
+        else:
+            sortie, k = [], 0
+            numeros = {i: n for i, n in marques}
+            while k < len(lignes):
+                if k in numeros:
+                    j = k + 1
+                    while j < len(lignes) and not lignes[j].strip():
+                        j += 1
+                    if j < len(lignes) and j not in numeros and not lignes[j].lstrip().startswith("#"):
+                        if sortie and not sortie[-1].strip() and len(sortie) > 1 and re.match(r"^\d+\. ", sortie[-2]):
+                            sortie.pop()                       # liste serrée : pas de ligne vide entre deux étapes
+                        sortie.append(f"{numeros[k]}. {lignes[j].strip()}")
+                        k = j + 1
+                        continue
+                sortie.append(lignes[k])
+                k += 1
+            texte = "\n".join(sortie)
+    # « 1 Verser le gin », « 2 Ajouter… » : seulement si aucune de ces lignes n'est un ingrédient
+    lignes = texte.splitlines()
+    sans_point = [(i, m) for i, l in enumerate(lignes) if (m := _MARQUE_SANS_POINT.match(l))]
+    if _suite_depuis_un([int(m.group(1)) for _, m in sans_point]) and not any(_INGREDIENT.match(lignes[i]) for i, _ in sans_point):
+        for i, m in sans_point:
+            lignes[i] = f"{m.group(1)}. {m.group(2)}"
+        texte = "\n".join(lignes)
+    return texte
+
+
 def nettoyer(markdown_page: str, rang: int, images_connues: set[str]) -> str:
-    """Retire numéros de page et lettres de marge, met les ingrédients en liste, renomme les illustrations
-    de la page (p0001-img-0.jpeg)."""
-    lignes = [l for l in markdown_page.splitlines() if not _LIGNE_PARASITE.match(l)]
+    """Répare les listes numérotées, retire numéros de page et lettres de marge, met les ingrédients en liste,
+    renomme les illustrations de la page (p0001-img-0.jpeg)."""
+    lignes = [l for l in reparer_listes(markdown_page).splitlines() if not _LIGNE_PARASITE.match(l)]
     texte = lister_ingredients("\n".join(lignes))
 
     def image(m: re.Match) -> str:

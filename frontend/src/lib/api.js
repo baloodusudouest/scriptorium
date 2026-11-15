@@ -53,8 +53,11 @@ export async function envoyerFichier(livreId, fichier, surAvance) {
 }
 
 // Page reprise à l'iPhone : la photo part telle quelle (JPEG ou HEIC), le serveur la redresse et la recadre.
-export async function envoyerPhoto(livreId, numero, fichier) {
-  const r = await fetch(`/api/livres/${livreId}/pages/ajouter?numero=${numero}`, {
+export const envoyerPhoto = (livreId, numero, fichier) => envoyerImage(`/api/livres/${livreId}/pages/ajouter?numero=${numero}`, fichier)
+
+// Envoi d'une photo telle quelle (PUT, corps brut) : page reprise, code-barres de l'ISBN
+export async function envoyerImage(chemin, fichier) {
+  const r = await fetch(chemin, {
     method: 'PUT', body: fichier, credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' },
   })
   const d = await r.json().catch(() => ({}))

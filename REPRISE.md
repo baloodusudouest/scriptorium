@@ -4,6 +4,7 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## État (15/11/2026)
 
+- **0.4.1 à 0.4.3** (15/11/2026) : tuiles du bilan cliquables, numéro de page dans l'écran de la page, listes numérotées réparées, ISBN par photo du code-barres.
 - **0.4.0** (15/11/2026) : fiche par l'ISBN (BnF puis Open Library, proposée et non imposée), couverture choisie, métadonnées dans l'EPUB, PDF A5 soigné (WeasyPrint, tâche de fond). Fin des trois livraisons prévues au conseil.
 - **0.3.1** (15/11/2026) : contre-lecture par Marker sur le PC (`pc/`, image `scriptorium-calcul`), porte `/calcul` à jeton, mots à relire dans l'écran de relecture.
 - **0.3.0** (15/11/2026) : reprise d'une page manquante à l'iPhone, rangée à sa place d'après son numéro ; écran de relecture d'une page (image et texte, correction gardée, relecture d'une seule page par Mistral, « garder en image », rotation). Voir `CHANGELOG.md`.
@@ -35,7 +36,8 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
    - le temps de fabrication du PDF A5 sur le J4125 et son rendu ;
    - l'EPUB dans Grimmory, KOReader et Comptoir (listes numérotées « ordre de préparation » : dans l'essai de Comptoir, seuls les numéros restaient).
 2. Jamais essayés en vrai : Marker 2.2 dans le conteneur du PC (l'API est appelée comme `marker_single`, avec repli sur la commande), l'API SRU de la BnF depuis le NAS, WeasyPrint dans l'image Docker.
-3. Plus tard, si le besoin revient : prise d'un livre entier à l'iPhone (file d'attente hors ligne, HTTPS par Tailscale Serve), code-barres ISBN à l'iPhone, voie B (modèle de vision sur la carte AMD) à la place de Mistral.
+3. À vérifier sur la page « ordre de préparation » du vrai livre : la réparation des listes numérotées (0.4.3) suppose une des trois formes connues ; si le texte de Mistral (écran de la page) en montre une autre, l'ajouter à `reparer_listes`.
+4. Plus tard, si le besoin revient : prise d'un livre entier à l'iPhone (file d'attente hors ligne, HTTPS par Tailscale Serve), voie B (modèle de vision sur la carte AMD) à la place de Mistral.
 
 ## Décisions tranchées
 

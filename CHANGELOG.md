@@ -1,5 +1,11 @@
 # Journal des versions — Scriptorium
 
+## 0.4.3 — 15/11/2026 — listes numérotées réparées, ISBN par le code-barres
+
+- **Listes numérotées** (`fabrication.reparer_listes`) : dans un essai, l'« ordre de préparation » d'un livre de cocktails est arrivé dans l'EPUB avec ses seuls numéros (constat noté par Comptoir). Avant la mise en page, trois formes de la lecture sont remises en vraie liste (`<ol>`) : le numéro seul sur sa ligne et son texte sur la suivante ; les numéros en colonne, tous d'abord, puis les textes dans l'ordre ; « 1 Verser le gin » sans point (pas « 1 trait d'amer », qui est un ingrédient). Seule une suite 1, 2, 3… est touchée : le numéro de page de fin de page reste ignoré. Vaut pour l'EPUB et le PDF A5. **Pas vérifié sur la page réelle** : la forme exacte rendue par Mistral pour cette page n'est pas connue.
+- **ISBN par le code-barres** : « Photographier le code-barres » dans la fiche ouvre l'appareil photo de l'iPhone ; la photo du dos du livre est lue sur le NAS (zxing-cpp, EAN-13 978/979 seulement), l'ISBN remplit le champ et la fiche est aussitôt cherchée. Pas besoin de HTTPS ni d'un lecteur dans Safari. Rien n'est enregistré sans « Reprendre » puis « Enregistrer la fiche ».
+- Tests : 77 (trois formes de listes et ce qui n'en est pas, code-barres lu sur une photo de travers, photo sans code, code de produit qui n'est pas un ISBN, écran sur iPhone).
+
 ## 0.4.2 — 15/11/2026 — numéro de page dans l'écran de la page
 
 - L'écran de relecture d'une page permet de changer son numéro imprimé (« Enregistrer le numéro » ; vide : sans numéro), avec son origine (« posé à la main » ou « lu par Mistral »), et d'écarter la page ou de la remettre dans le livre. Le titre et les boutons précédente/suivante suivent aussitôt.

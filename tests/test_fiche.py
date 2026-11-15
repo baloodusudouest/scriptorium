@@ -165,3 +165,35 @@ def test_ingredients_avec_completez():
     from app.fabrication import lister_ingredients
     texte = "50 ml de rhum\n1/2 citron vert\n8 feuilles de menthe\nComplétez avec de l'eau gazeuse"
     assert lister_ingredients(texte).count("- ") == 4
+
+
+# ---------------------------------------------------------------- code-barres (0.4.3)
+
+def photo_code_barres(texte="9782070612758", tourne=4) -> bytes:
+    import numpy as np
+    import zxingcpp
+    from PIL import Image, ImageOps
+    code = Image.fromarray(np.array(zxingcpp.create_barcode(texte, zxingcpp.BarcodeFormat.EAN13).to_image(scale=4))).convert("RGB")
+    code = ImageOps.expand(code, 20, "white").rotate(tourne, expand=True, fillcolor=(180, 150, 120))
+    fond = Image.new("RGB", (1600, 1200), (180, 150, 120))
+    fond.paste(code, (500, 400))
+    t = io.BytesIO()
+    fond.save(t, "JPEG", quality=85)
+    return t.getvalue()
+
+
+def test_isbn_lu_sur_la_photo_du_code_barres(client, monkeypatch):  # noqa: F811
+    livre_id = livre_lu(client, monkeypatch, n=1)
+    r = client.put(f"/api/livres/{livre_id}/isbn/photo", content=photo_code_barres())
+    assert r.status_code == 200 and r.json()["isbn"] == ISBN
+    assert client.get(f"/api/livres/{livre_id}").json()["isbn"] == ""     # rien n'est enregistré d'office
+
+
+def test_photo_sans_code_barres_ou_illisible(client, monkeypatch):  # noqa: F811
+    from tests.test_relecture import photo_de_page
+    livre_id = livre_lu(client, monkeypatch, n=1)
+    r = client.put(f"/api/livres/{livre_id}/isbn/photo", content=photo_de_page())
+    assert r.status_code == 422 and "Aucun code-barres" in r.json()["detail"]
+    assert client.put(f"/api/livres/{livre_id}/isbn/photo", content=b"rien").status_code == 422
+    # Un EAN-13 qui n'est pas un ISBN (produit du commerce) est ignoré
+    assert client.put(f"/api/livres/{livre_id}/isbn/photo", content=photo_code_barres("3017620422003")).status_code == 422

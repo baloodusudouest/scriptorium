@@ -217,3 +217,21 @@ def test_numero_change_depuis_la_page(navigateur, adresse):
     page.get_by_role("heading", name="Page 1").wait_for()
     page.get_by_text("posé à la main").wait_for()
     assert erreurs == []
+
+
+def test_isbn_par_la_photo_du_code_barres(navigateur, adresse, tmp_path):
+    """0.4.3 : photographier le code-barres remplit l'ISBN et cherche aussitôt la fiche."""
+    from tests.test_fiche import photo_code_barres
+    photo = tmp_path / "code.jpg"
+    photo.write_bytes(photo_code_barres())
+    page, erreurs = ouvrir(navigateur, adresse, "iphone")
+    page.get_by_text("Daiquiri et compagnie").click()
+    page.get_by_role("button", name="Modifier la fiche").click()
+    page.get_by_label("ISBN").fill("")
+    with page.expect_file_chooser() as choix:
+        page.get_by_role("button", name="Photographier le code-barres").click()
+    choix.value.set_files(str(photo))
+    page.get_by_text("BnF propose").wait_for()
+    assert page.get_by_label("ISBN").input_value() == "9782070612758"
+    sans_debordement(page)
+    assert erreurs == []

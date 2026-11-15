@@ -268,6 +268,23 @@ def chercher_notice(livre_id: int, corps: dict = Body(default={})):
             "message": "" if resultat else f"Ni la BnF ni Open Library ne connaissent l'ISBN {trouves[0]}."}
 
 
+@app.put("/api/livres/{livre_id}/isbn/photo")
+async def isbn_par_photo(livre_id: int, request: Request):
+    """Photo du code-barres du livre → ISBN (rien n'est enregistré : il remplit le champ de la fiche)."""
+    _livre(livre_id)
+    contenu = await request.body()
+    if not contenu or len(contenu) > 40 * 10**6:
+        raise HTTPException(422, "Photo absente ou trop lourde (40 Mo au plus).")
+    try:
+        trouves = notice.lire_code_barres(contenu)
+    except ValueError as e:
+        raise HTTPException(422, f"Photo illisible : {e}") from e
+    if not trouves:
+        raise HTTPException(422, "Aucun code-barres ISBN lisible : rapproche-toi du code (il doit remplir le tiers de la photo), "
+                                 "à plat, bien éclairé, sans reflet.")
+    return {"isbn": trouves[0], "trouves": trouves}
+
+
 @app.post("/api/livres/{livre_id}/couverture")
 def choisir_couverture(livre_id: int, corps: dict = Body(...)):
     """Page qui sert de couverture à l'EPUB et au PDF (sans choix : la première page gardée)."""

@@ -8,7 +8,7 @@
   import ArrowLeft from '@lucide/svelte/icons/arrow-left'
   import Download from '@lucide/svelte/icons/download'
   import Camera from '@lucide/svelte/icons/camera'
-  import { api, envoyerPhoto } from '$lib/api.js'
+  import { api, envoyerPhoto, envoyerImage } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import { Badge } from '$lib/components/ui/badge/index.js'
   import { Progress } from '$lib/components/ui/progress/index.js'
@@ -92,6 +92,23 @@
     proposition = null
     const r = await geste('notice', `/api/livres/${id}/notice`, fiche.isbn ? { isbn: fiche.isbn } : {})
     if (r) proposition = r
+  }
+  // Code-barres (0.4.3) : photo du dos du livre, lue sur le NAS ; l'ISBN trouvé remplit le champ puis la fiche est cherchée
+  let codeInput
+  async function codeChoisi() {
+    const fichier = codeInput.files?.[0]
+    if (!fichier) return
+    attente = 'code'
+    message = ''
+    proposition = null
+    try {
+      const r = await envoyerImage(`/api/livres/${id}/isbn/photo`, fichier)
+      fiche = { ...fiche, isbn: r.isbn }
+    } catch (err) {
+      if (err.statut === 401) ondeconnecte(); else message = err.message
+      return
+    } finally { attente = '' }
+    await chercherNotice()
   }
   function reprendre() {
     const n = proposition.notice
@@ -215,6 +232,9 @@
           <label class="flex min-w-48 flex-1 flex-col gap-1.5 text-sm">ISBN
             <input bind:value={fiche.isbn} inputmode="numeric" placeholder="vide : cherché dans le texte lu"
                    class="h-10 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus:border-ring" /></label>
+          <input bind:this={codeInput} type="file" accept="image/*" capture="environment" class="hidden" onchange={codeChoisi} tabindex="-1" aria-hidden="true" />
+          <Button type="button" variant="outline" onclick={() => { codeInput.value = ''; codeInput.click() }} disabled={attente === 'code'}>
+            <Camera class="size-4" aria-hidden="true" /> {attente === 'code' ? 'Lecture du code…' : 'Photographier le code-barres'}</Button>
           <Button type="button" variant="outline" onclick={chercherNotice} disabled={attente === 'notice'}>
             {attente === 'notice' ? 'Recherche…' : 'Chercher la fiche par l\'ISBN'}</Button>
         </div>
