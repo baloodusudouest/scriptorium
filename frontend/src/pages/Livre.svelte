@@ -8,6 +8,7 @@
   import ArrowLeft from '@lucide/svelte/icons/arrow-left'
   import Download from '@lucide/svelte/icons/download'
   import Camera from '@lucide/svelte/icons/camera'
+  import Pencil from '@lucide/svelte/icons/pencil'
   import { api, envoyerPhoto, envoyerImage } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import { Badge } from '$lib/components/ui/badge/index.js'
@@ -255,13 +256,19 @@
           <Button type="button" variant="ghost" onclick={() => (edition = false)}>Annuler</Button></div>
       </form>
     {:else}
-      <h1 class="lettrine-titre text-4xl md:text-5xl">{l.titre}</h1>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <h1 class="lettrine-titre text-4xl md:text-5xl">{l.titre}</h1>
+        <!-- 0.4.4 : un vrai bouton (le lien gris de la ligne d'infos passait inaperçu) -->
+        <Button variant="outline" onclick={ouvrirFiche} class="mt-1 shrink-0">
+          <Pencil class="size-4" aria-hidden="true" /> Modifier la fiche
+        </Button>
+      </div>
       <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
         {#if l.auteur}<span>{l.auteur}</span>{/if}
         {#if l.editeur || l.annee}<span>{[l.editeur, l.annee].filter(Boolean).join(', ')}</span>{/if}
         {#if l.isbn}<span>ISBN {l.isbn}</span>{/if}
         <span>{b.pages} pages dans le PDF</span>
-        <button type="button" class="text-sm underline-offset-4 hover:text-foreground hover:underline" onclick={ouvrirFiche}>Modifier la fiche</button>
+        {#if !l.isbn}<span class="text-sm">pas d'ISBN</span>{/if}
       </p>
     {/if}
   </header>

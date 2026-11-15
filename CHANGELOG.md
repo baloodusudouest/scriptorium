@@ -1,5 +1,9 @@
 # Journal des versions — Scriptorium
 
+## 0.4.4 — 15/11/2026 — « Modifier la fiche » en vrai bouton
+
+- Le lien gris « Modifier la fiche », perdu au bout de la ligne d'infos, devient un bouton (avec un crayon) à droite du titre du livre (sous le titre sur iPhone). La ligne d'infos dit « pas d'ISBN » tant qu'il n'y en a pas.
+
 ## 0.4.3 — 15/11/2026 — listes numérotées réparées, ISBN par le code-barres
 
 - **Listes numérotées** (`fabrication.reparer_listes`) : dans un essai, l'« ordre de préparation » d'un livre de cocktails est arrivé dans l'EPUB avec ses seuls numéros (constat noté par Comptoir). Avant la mise en page, trois formes de la lecture sont remises en vraie liste (`<ol>`) : le numéro seul sur sa ligne et son texte sur la suivante ; les numéros en colonne, tous d'abord, puis les textes dans l'ordre ; « 1 Verser le gin » sans point (pas « 1 trait d'amer », qui est un ingrédient). Seule une suite 1, 2, 3… est touchée : le numéro de page de fin de page reste ignoré. Vaut pour l'EPUB et le PDF A5. **Pas vérifié sur la page réelle** : la forme exacte rendue par Mistral pour cette page n'est pas connue.
