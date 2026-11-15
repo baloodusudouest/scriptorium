@@ -1,5 +1,9 @@
 # Journal des versions — Scriptorium
 
+## 0.2.4 — 15/11/2026 — icône propre
+
+- Icône de Scriptorium à la place de celle du socle : une lettrine « S » sépia en EB Garamond (tracée en chemin, sans dépendre d'une police installée), à côté de lignes de texte, sur le fond sombre commun. `icone.svg`, `icone-180.png` et `icone-512.png` ; c'est elle que l'Anneau affiche sur la tuile.
+
 ## 0.2.3 — 14/11/2026 — EPUB lisible par Comptoir
 
 Le livre de cocktails sera importé dans Comptoir (l'appli des cocktails). Comptoir découpe un EPUB en recettes : un titre (`h1`–`h3`), les ingrédients (liste, ou lignes qui commencent par une quantité), puis la préparation ; il garde la page d'origine de chaque recette.
