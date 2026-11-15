@@ -17,7 +17,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       # Tesseract : lecture des numéros de page ; interface compilée et navigateur : tests d'écran
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       - run: cd frontend && npm ci && npx vite build
       - run: pip install -r requirements-dev.txt && python -m playwright install --with-deps chromium
       - run: python -m pytest -q

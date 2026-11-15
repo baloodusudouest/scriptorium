@@ -20,7 +20,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, capture, contre, fabrication, inventaire, mistral
+from . import __version__, capture, contre, fabrication, inventaire, mistral, notice
 from .auth import COMMUN, DUREE, Sessions
 from .base import Base, maintenant
 from .config import APPLI, Config, charger
@@ -174,6 +174,7 @@ def _bilan(livre: dict, pages: list[dict]) -> dict:
                    "pc": bool(ETAT["cfg"].jeton_calcul)},
         "estimation": {"pages": a_lire, "dollars": round(a_lire * cfg.prix_page, 2)},
         "facturees": sum(p["pages_facturees"] for p in pages),
+        "pdf": bool(livre["pdf"]) and (ETAT["base"].dossier(livre["id"]) / "sortie" / livre["pdf"]).exists(),
         "fabrique": bool(livre["epub"]) and (ETAT["base"].dossier(livre["id"]) / "sortie" / livre["epub"]).exists(),
     }
 
@@ -217,13 +218,65 @@ def livre(livre_id: int):
 
 @app.post("/api/livres/{livre_id}/fiche")
 def fiche(livre_id: int, corps: dict = Body(...)):
-    _livre(livre_id)
-    titre = str(corps.get("titre", "")).strip()
+    """Fiche du livre : titre, auteur(s) séparés par des virgules, éditeur, année, ISBN, langue."""
+    livre_ = _livre(livre_id)
+    titre = str(corps.get("titre", livre_["titre"])).strip()
     if not titre:
         raise HTTPException(422, "Le titre ne peut pas être vide.")
-    ETAT["base"].ecrire("UPDATE livres SET titre = ?, auteur = ?, langue = ? WHERE id = ?", titre,
-                        str(corps.get("auteur", "")).strip(), str(corps.get("langue") or "fr")[:5], livre_id)
-    return _vue(_livre(livre_id))
+    isbn = str(corps.get("isbn", livre_["isbn"]) or "").strip()
+    if isbn:
+        isbn = notice.isbn13(isbn) or ""
+        if not isbn:
+            raise HTTPException(422, "ISBN invalide : la clé de contrôle ne correspond pas.")
+    annee = str(corps.get("annee", livre_["annee"]) or "").strip()
+    if annee and not (annee.isdigit() and len(annee) == 4):
+        raise HTTPException(422, "Année sur quatre chiffres.")
+    ETAT["base"].ecrire("UPDATE livres SET titre = ?, auteur = ?, langue = ?, editeur = ?, annee = ?, isbn = ? WHERE id = ?", titre,
+                        str(corps.get("auteur", livre_["auteur"])).strip()[:300], str(corps.get("langue") or livre_["langue"] or "fr")[:5],
+                        str(corps.get("editeur", livre_["editeur"])).strip()[:200], annee, isbn, livre_id)
+    return _vue(_livre(livre_id), avec_pages=True)
+
+
+@app.post("/api/livres/{livre_id}/notice")
+def chercher_notice(livre_id: int, corps: dict = Body(default={})):
+    """Cherche la fiche par l'ISBN (donné, ou repéré dans le texte lu des premières et dernières pages).
+    Renvoie une proposition, rien n'est enregistré."""
+    _livre(livre_id)
+    if not ETAT["cfg"].recherche_web:
+        raise HTTPException(409, "Recherche en ligne coupée (SCRIPTORIUM_RECHERCHE_WEB=non) : remplis la fiche à la main.")
+    trouves: list[str] = []
+    isbn = str(corps.get("isbn") or "").strip()
+    if isbn:
+        if not notice.isbn13(isbn):
+            raise HTTPException(422, "ISBN invalide : la clé de contrôle ne correspond pas.")
+        trouves = [notice.isbn13(isbn)]
+    else:
+        pages = ETAT["base"].lire("SELECT rang FROM pages WHERE livre_id = ? AND ecartee = 0 ORDER BY ordre", livre_id)
+        lu = ETAT["base"].dossier(livre_id) / "lu"
+        for p in pages[:12] + pages[-8:]:
+            f = lu / f"{p['rang']:04d}.md"
+            if f.is_file():
+                trouves += [n for n in notice.trouver_isbn(f.read_text(encoding="utf-8")) if n not in trouves]
+        if not trouves:
+            return {"isbn_trouves": [], "notice": None,
+                    "message": "Aucun ISBN dans le texte lu des premières et dernières pages : tape-le (dos du livre ou page de copyright)."}
+    try:
+        resultat = notice.chercher(trouves[0])
+    except notice.ErreurNotice as e:
+        raise HTTPException(502, str(e)) from e
+    return {"isbn_trouves": trouves, "notice": resultat,
+            "message": "" if resultat else f"Ni la BnF ni Open Library ne connaissent l'ISBN {trouves[0]}."}
+
+
+@app.post("/api/livres/{livre_id}/couverture")
+def choisir_couverture(livre_id: int, corps: dict = Body(...)):
+    """Page qui sert de couverture à l'EPUB et au PDF (sans choix : la première page gardée)."""
+    _livre(livre_id)
+    rang = corps.get("rang")
+    if rang is not None:
+        _page(livre_id, int(rang))
+    ETAT["base"].ecrire("UPDATE livres SET couverture = ? WHERE id = ?", int(rang) if rang is not None else None, livre_id)
+    return _vue(_livre(livre_id), avec_pages=True)
 
 
 @app.post("/api/livres/{livre_id}/supprimer")
@@ -513,15 +566,25 @@ def fabriquer(livre_id: int, partiel: bool = False):
     return {**_vue(_livre(livre_id)), "fabrication": bilan}
 
 
+@app.post("/api/livres/{livre_id}/pdf")
+def demander_pdf(livre_id: int):
+    """PDF A5 soigné, fabriqué en tâche de fond (quelques minutes pour un gros livre)."""
+    livre_ = _livre(livre_id)
+    if livre_["etat"] not in ("inventaire", "lecture", "pret"):
+        raise HTTPException(409, "Les pages ne sont pas encore découpées.")
+    ETAT["base"].ecrire("UPDATE livres SET pdf_demande = 1, pdf_erreur = '' WHERE id = ?", livre_id)
+    return _vue(_livre(livre_id), avec_pages=True)
+
+
 @app.get("/api/livres/{livre_id}/telecharger/{quoi}")
 def telecharger(livre_id: int, quoi: str):
     livre_ = _livre(livre_id)
     essai = f"{fabrication.nom_fichier(livre_['auteur'], livre_['titre'])} (essai).epub"
-    nom = {"epub": livre_["epub"], "archive": livre_["archive"], "essai": essai}.get(quoi)
+    nom = {"epub": livre_["epub"], "archive": livre_["archive"], "essai": essai, "pdf": livre_["pdf"]}.get(quoi)
     chemin = ETAT["base"].dossier(livre_id) / "sortie" / (nom or "")
     if not nom or not chemin.is_file():
         raise HTTPException(404, "Livre pas encore fabriqué.")
-    media = "application/pdf" if quoi == "archive" else "application/epub+zip"
+    media = "application/pdf" if quoi in ("archive", "pdf") else "application/epub+zip"
     return FileResponse(chemin, media_type=media, filename=nom)
 
 

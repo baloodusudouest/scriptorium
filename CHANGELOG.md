@@ -1,5 +1,16 @@
 # Journal des versions — Scriptorium
 
+## 0.4.0 — 15/11/2026 — fiche par l'ISBN, couverture, PDF A5
+
+- **Fiche du livre** : éditeur, année et ISBN en plus du titre et de l'auteur (plusieurs auteurs séparés par des virgules). L'ISBN est vérifié (clé de contrôle) et gardé en ISBN-13 ; un ISBN-10 est converti.
+- **Chercher la fiche par l'ISBN** (`app/notice.py`) : l'ISBN tapé, ou à défaut celui repéré dans le texte lu des 12 premières et 8 dernières pages (page de copyright, dos). Recherche au catalogue général de la BnF (API SRU, critère `bib.fuzzyISBN`), puis sur Open Library. La fiche trouvée est **proposée** (« Reprendre dans la fiche »), jamais enregistrée d'office. Lecture seule ; `SCRIPTORIUM_RECHERCHE_WEB=non` coupe la recherche. Le code-barres lu à l'iPhone n'est pas fait : l'ISBN se tape ou se trouve dans le texte.
+- **Couverture** : « Prendre comme couverture » sur n'importe quelle page (par défaut : la première page gardée). Elle sert à l'EPUB (vraie couverture, vue par Grimmory et la liseuse) et au PDF.
+- **EPUB** : ISBN (`urn:isbn`), éditeur, année, un `dc:creator` par auteur, mention de la recomposition par Scriptorium.
+- **PDF A5 soigné** (`app/pdf_livre.py`, WeasyPrint) : même texte que l'EPUB, en EB Garamond (polices incluses, licence OFL) ; couverture pleine page, page de titre, sommaire avec numéros de page, titre courant et folio, numéro de la page du livre papier en marge, page gardée en image sur sa propre page, titres jamais seuls en bas de page, listes d'ingrédients non coupées, colophon. Fabriqué en tâche de fond (« Mettre en page un PDF A5 », puis « PDF A5 » à télécharger). Le PDF d'archive des images de pages reste à côté. Le PDF A5 n'est pas déposé dans Grimmory (une seconde fiche du même livre).
+- **Ingrédients** : « Complétez avec… » est reconnu comme une ligne d'ingrédient (avant, seul « Compléter » l'était, et la liste entière restait en paragraphe), dans l'EPUB comme dans le PDF.
+- Image Docker : pango et harfbuzz pour WeasyPrint (environ 40 Mo de plus).
+- Tests : 68 au total (ISBN, BnF et Open Library simulées, recherche coupée, fiche refusée si ISBN faux, métadonnées et couverture de l'EPUB, PDF A5 au format A5 avec sommaire, repères de page, page en image et ISBN, écran de la fiche et de la couverture).
+
 ## 0.3.1 — 15/11/2026 — contre-lecture par le PC (fin de la 0.3)
 
 - **Contre-lecture par Marker sur le PC** : nouveau dossier `pc/` (`calcul.yml` pour Docker Desktop, `calcul.py`, `Dockerfile`, `LISEZMOI.md`). Le conteneur demande une page au NAS toutes les 30 s, la lit avec Marker 2.2 sur le processeur (mode « fast », modèles chargés une fois et gardés dans un volume) et renvoie le texte. Image publiée sur `ghcr.io/baloodusudouest/scriptorium-calcul` par une action à part (seulement quand `pc/` change).

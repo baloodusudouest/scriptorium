@@ -19,8 +19,10 @@ LABEL org.opencontainers.image.title="scriptorium" \
       org.opencontainers.image.description="Scriptorium : d’un livre scanné à un livre en texte (PDF + EPUB)" \
       org.opencontainers.image.source="https://github.com/baloodusudouest/scriptorium"
 
-# gosu : abandon des droits root ; tzdata : heure française ; tesseract : lecture des numéros de page
+# gosu : abandon des droits root ; tzdata : heure française ; tesseract : lecture des numéros de page ;
+# pango et harfbuzz : mise en page du PDF A5 par WeasyPrint (les polices sont dans app/polices)
 RUN apt-get update && apt-get install -y --no-install-recommends gosu tzdata tesseract-ocr \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=roues /wheels /wheels

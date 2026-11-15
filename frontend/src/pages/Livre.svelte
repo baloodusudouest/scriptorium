@@ -62,7 +62,7 @@
   }
   onMount(() => {
     lire()
-    const t = setInterval(() => { if (l && (l.etat === 'decoupe' || (l.etat === 'lecture' && l.lecture_demandee))) lire() }, 2500)
+    const t = setInterval(() => { if (l && (l.etat === 'decoupe' || (l.etat === 'lecture' && l.lecture_demandee) || l.pdf_demande)) lire() }, 2500)
     // Pendant la contre-lecture par le PC (lente : 10 à 20 s par page), un coup d'œil toutes les 20 s suffit
     const c = setInterval(() => { const k = l?.bilan?.contre; if (k?.pc && k.attente + k.calcul > 0) lire() }, 20000)
     return () => { clearInterval(t); clearInterval(c) }
@@ -85,6 +85,24 @@
   async function validerNumero(rang) {
     await modifierPage(rang, { numero: numeroSaisi === '' ? null : Number(numeroSaisi) })
     numeroEdite = null
+  }
+  // Fiche par l'ISBN (0.4.0) : la BnF, puis Open Library, proposent ; rien n'est enregistré sans « Reprendre »
+  let proposition = $state(null)
+  async function chercherNotice() {
+    proposition = null
+    const r = await geste('notice', `/api/livres/${id}/notice`, fiche.isbn ? { isbn: fiche.isbn } : {})
+    if (r) proposition = r
+  }
+  function reprendre() {
+    const n = proposition.notice
+    fiche = { ...fiche, titre: n.titre || fiche.titre, auteur: n.auteur || fiche.auteur, editeur: n.editeur || fiche.editeur,
+              annee: n.annee || fiche.annee, isbn: n.isbn }
+    proposition = null
+  }
+  const ouvrirFiche = () => {
+    fiche = { titre: l.titre, auteur: l.auteur, langue: l.langue, editeur: l.editeur, annee: l.annee, isbn: l.isbn }
+    proposition = null
+    edition = true
   }
   async function enregistrerFiche(e) {
     e.preventDefault()
@@ -142,8 +160,34 @@
       <form class="flex flex-col gap-3 rounded-2xl border bg-card p-5" onsubmit={enregistrerFiche} aria-label="Fiche du livre">
         <label class="flex flex-col gap-1.5 text-sm">Titre
           <input bind:value={fiche.titre} required class="h-10 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus:border-ring" /></label>
-        <label class="flex flex-col gap-1.5 text-sm">Auteur
+        <label class="flex flex-col gap-1.5 text-sm">Auteur <span class="text-xs text-muted-foreground">plusieurs : séparés par des virgules</span>
           <input bind:value={fiche.auteur} class="h-10 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus:border-ring" /></label>
+        <div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
+          <label class="flex flex-col gap-1.5 text-sm">Éditeur
+            <input bind:value={fiche.editeur} class="h-10 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus:border-ring" /></label>
+          <label class="flex flex-col gap-1.5 text-sm">Année
+            <input bind:value={fiche.annee} inputmode="numeric" maxlength="4" class="h-10 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus:border-ring" /></label>
+        </div>
+        <div class="flex flex-wrap items-end gap-2">
+          <label class="flex min-w-48 flex-1 flex-col gap-1.5 text-sm">ISBN
+            <input bind:value={fiche.isbn} inputmode="numeric" placeholder="vide : cherché dans le texte lu"
+                   class="h-10 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus:border-ring" /></label>
+          <Button type="button" variant="outline" onclick={chercherNotice} disabled={attente === 'notice'}>
+            {attente === 'notice' ? 'Recherche…' : 'Chercher la fiche par l\'ISBN'}</Button>
+        </div>
+        {#if proposition}
+          <div class="rounded-xl border border-primary/50 p-3 text-sm" role="status">
+            {#if proposition.notice}
+              <p><span class="text-muted-foreground">{proposition.notice.source} propose :</span>
+                <span class="font-medium">{proposition.notice.titre}</span>{proposition.notice.auteur ? ` — ${proposition.notice.auteur}` : ''}
+                {[proposition.notice.editeur, proposition.notice.annee].filter(Boolean).length ? ` (${[proposition.notice.editeur, proposition.notice.annee].filter(Boolean).join(', ')})` : ''}</p>
+              <div class="mt-2"><Button type="button" size="sm" onclick={reprendre}>Reprendre dans la fiche</Button></div>
+            {:else}
+              <p>{proposition.message}</p>
+            {/if}
+          </div>
+        {/if}
+        <p class="text-sm text-muted-foreground">Couverture : {l.couverture ? `la page de rang ${l.couverture}` : 'la première page'}. Pour en changer, ouvre une page et touche « Prendre comme couverture ».</p>
         <div class="flex gap-2"><Button type="submit" disabled={attente === 'fiche'}>Enregistrer la fiche</Button>
           <Button type="button" variant="ghost" onclick={() => (edition = false)}>Annuler</Button></div>
       </form>
@@ -151,9 +195,10 @@
       <h1 class="lettrine-titre text-4xl md:text-5xl">{l.titre}</h1>
       <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
         {#if l.auteur}<span>{l.auteur}</span>{/if}
+        {#if l.editeur || l.annee}<span>{[l.editeur, l.annee].filter(Boolean).join(', ')}</span>{/if}
+        {#if l.isbn}<span>ISBN {l.isbn}</span>{/if}
         <span>{b.pages} pages dans le PDF</span>
-        <button type="button" class="text-sm underline-offset-4 hover:text-foreground hover:underline"
-                onclick={() => { fiche = { titre: l.titre, auteur: l.auteur, langue: l.langue }; edition = true }}>Modifier la fiche</button>
+        <button type="button" class="text-sm underline-offset-4 hover:text-foreground hover:underline" onclick={ouvrirFiche}>Modifier la fiche</button>
       </p>
     {/if}
   </header>
@@ -335,6 +380,17 @@
             <Button variant="outline" href={`/api/livres/${id}/telecharger/epub`}><Download class="size-4" aria-hidden="true" /> EPUB</Button>
             <Button variant="outline" href={`/api/livres/${id}/telecharger/archive`}><Download class="size-4" aria-hidden="true" /> PDF d'archive</Button>
           {/if}
+        </div>
+        <div class="flex flex-wrap items-center gap-3 border-t pt-4">
+          {#if l.pdf_demande}
+            <p class="text-sm" role="status">Mise en page du PDF A5… quelques minutes pour un gros livre. Tu peux fermer cette page.</p>
+          {:else}
+            <Button variant="outline" onclick={() => geste('pdf', `/api/livres/${id}/pdf`)} disabled={attente === 'pdf' || (l.etat === 'lecture' && l.lecture_demandee)}>
+              {b.pdf ? 'Refaire le PDF A5' : 'Mettre en page un PDF A5'}</Button>
+            {#if b.pdf}<Button variant="outline" href={`/api/livres/${id}/telecharger/pdf`}><Download class="size-4" aria-hidden="true" /> PDF A5</Button>{/if}
+            <span class="text-sm text-muted-foreground">Le livre recomposé, à lire à l'écran ou à imprimer : couverture, sommaire, pages du livre papier en marge.</span>
+          {/if}
+          {#if l.pdf_erreur}<p class="w-full text-sm text-destructive" role="alert">PDF A5 en échec : {l.pdf_erreur}</p>{/if}
         </div>
         {#if b.fabrique}
           <div class="flex flex-wrap items-center gap-3 border-t pt-4">

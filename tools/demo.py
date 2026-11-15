@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 RACINE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RACINE))
 
-from app import contre, main, mistral  # noqa: E402
+from app import contre, main, mistral, notice  # noqa: E402
 from app.config import Config  # noqa: E402
 
 MDP = "demo-demo-demo"
@@ -83,6 +83,17 @@ def _remplir(TestClient, lecture) -> None:
                     contre.enregistrer(main.ETAT["base"], livre["id"], rang, texte)
 
 
+_vraie_notice = notice.chercher
+
+
+def _notice_demo(isbn, client=None):
+    """Pas d'Internet en démonstration : une fiche inventée (le vrai client reste utilisable avec un client donné)."""
+    if client is not None:
+        return _vraie_notice(isbn, client)
+    return {"titre": "Daiquiri et compagnie", "auteur": "Autre Auteur", "editeur": "Éditions Imaginaires",
+            "annee": "2012", "isbn": notice.isbn13(isbn), "source": "BnF"}
+
+
 def lancer(port: int = 8191, data: Path | None = None):
     data = data or Path(tempfile.mkdtemp(prefix="scriptorium-demo-"))
     (data / "bookdrop").mkdir(parents=True, exist_ok=True)
@@ -90,6 +101,7 @@ def lancer(port: int = 8191, data: Path | None = None):
     main.ETAT["cfg"] = Config(password=MDP, data=data / "data", static=RACINE / "app" / "static", attente_connexion=False,
                               travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120,
                               jeton_calcul="demo-jeton-du-pc")
+    notice.chercher = _notice_demo
     preparer(data)
     main.ETAT["cfg"] = Config(password=MDP, data=data / "data", static=RACINE / "app" / "static", attente_connexion=False,
                               travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120,

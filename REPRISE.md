@@ -4,6 +4,8 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## État (15/11/2026)
 
+- **0.4.0** (15/11/2026) : fiche par l'ISBN (BnF puis Open Library, proposée et non imposée), couverture choisie, métadonnées dans l'EPUB, PDF A5 soigné (WeasyPrint, tâche de fond). Fin des trois livraisons prévues au conseil.
+- **0.3.1** (15/11/2026) : contre-lecture par Marker sur le PC (`pc/`, image `scriptorium-calcul`), porte `/calcul` à jeton, mots à relire dans l'écran de relecture.
 - **0.3.0** (15/11/2026) : reprise d'une page manquante à l'iPhone, rangée à sa place d'après son numéro ; écran de relecture d'une page (image et texte, correction gardée, relecture d'une seule page par Mistral, « garder en image », rotation). Voir `CHANGELOG.md`.
 - **0.2.4** (15/11/2026) : icône propre (lettrine « S » sépia). Tuile dans l'Anneau (Médias, à côté de Grimmory), posée dans Atlas.
 - **0.2.3** (14/11/2026) : EPUB lisible par Comptoir (recette jamais coupée entre deux fichiers, ingrédients en liste, repères de page dans le fil).
@@ -26,14 +28,14 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## Prochaine étape
 
-1. L'utilisateur déploie la 0.2.0 (service `scriptorium` ajouté à `homelab.yml`, variable `SCRIPTORIUM_MISTRAL_CLE`) et importe son PDF de 400 Mo. Retours à recueillir :
-   - temps de découpe ;
-   - justesse de l'inventaire face au sommaire ;
-   - qualité du texte lu par Mistral ;
-   - rendu de l'EPUB dans Grimmory et sur la Kindle.
-2. Faits en 0.3.0 : relecture image/texte, choix « recomposer / garder en image », reprise des pages manquantes à l'iPhone. **Reste de la 0.3** : contre-lecture Marker sur le PC (`pc/calcul.yml`) et mots à relire surlignés dans l'écran de relecture.
-3. Livraison 0.4 : fiche par ISBN, PDF A5 soigné. (La prise iPhone faite en 0.3.0 est une page à la fois, sans file d'attente hors ligne : à revoir si un livre entier doit être pris à l'iPhone.)
-4. Sur le vrai livre, à surveiller : les listes numérotées (« ordre de préparation ») qui, dans l'essai de Comptoir, ne gardaient que les numéros 1. à 7. sans leur texte.
+1. L'utilisateur redéploie en 0.4.0 (re-pull), ajoute `SCRIPTORIUM_JETON_CALCUL` à la stack et lance `pc/calcul.yml` sur le PC (voir `pc/LISEZMOI.md`). À recueillir sur le vrai livre :
+   - temps de découpe du PDF de 400 Mo, justesse de l'inventaire, reprise des pages manquantes à l'iPhone ;
+   - temps par page de Marker sur le PC, et utilité des mots à relire (trop de bruit ? assez de vraies fautes ?) ;
+   - la fiche trouvée par l'ISBN ;
+   - le temps de fabrication du PDF A5 sur le J4125 et son rendu ;
+   - l'EPUB dans Grimmory, KOReader et Comptoir (listes numérotées « ordre de préparation » : dans l'essai de Comptoir, seuls les numéros restaient).
+2. Jamais essayés en vrai : Marker 2.2 dans le conteneur du PC (l'API est appelée comme `marker_single`, avec repli sur la commande), l'API SRU de la BnF depuis le NAS, WeasyPrint dans l'image Docker.
+3. Plus tard, si le besoin revient : prise d'un livre entier à l'iPhone (file d'attente hors ligne, HTTPS par Tailscale Serve), code-barres ISBN à l'iPhone, voie B (modèle de vision sur la carte AMD) à la place de Mistral.
 
 ## Décisions tranchées
 

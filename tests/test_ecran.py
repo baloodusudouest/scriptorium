@@ -165,3 +165,24 @@ def test_mots_a_relire_de_la_contre_lecture(navigateur, adresse, taille):
     page.get_by_role("button", name="Enregistrer le texte").click()
     page.get_by_text(re.compile("^Page relue")).wait_for()
     assert erreurs == []
+
+
+def test_fiche_par_l_isbn_et_pdf_a5(navigateur, adresse):
+    """0.4 : chercher la fiche par l'ISBN, la reprendre, l'enregistrer ; demander le PDF A5 ; choisir la couverture."""
+    page, erreurs = ouvrir(navigateur, adresse, "pc")
+    page.get_by_text("Daiquiri et compagnie").click()
+    page.get_by_role("button", name="Modifier la fiche").click()
+    page.get_by_label("ISBN").fill("978-2-07-061275-8")
+    page.get_by_role("button", name="Chercher la fiche par l'ISBN").click()
+    page.get_by_text("BnF propose").wait_for()
+    page.get_by_role("button", name="Reprendre dans la fiche").click()
+    assert page.get_by_label("Éditeur").input_value() == "Éditions Imaginaires"
+    page.get_by_role("button", name="Enregistrer la fiche").click()
+    page.get_by_text("ISBN 9782070612758").wait_for()
+    page.get_by_text("Éditions Imaginaires, 2012").wait_for()
+    page.get_by_role("button", name="Mettre en page un PDF A5").click()
+    page.get_by_text("Mise en page du PDF A5").wait_for()
+    page.locator("ul[aria-label='Pages du PDF'] a").nth(2).click()
+    page.get_by_role("button", name="Prendre comme couverture").click()
+    page.get_by_text("couverture du livre").wait_for()
+    assert erreurs == []

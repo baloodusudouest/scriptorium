@@ -54,7 +54,28 @@ class Travail:
         if livre:
             self.lire(livre["id"])
             return True
+        livre = self.base.un("SELECT * FROM livres WHERE pdf_demande = 1 ORDER BY id LIMIT 1")
+        if livre:
+            self.fabriquer_pdf(livre)
+            return True
         return False
+
+    # ------------------------------------------------------------ PDF A5 (0.4.0)
+    def fabriquer_pdf(self, livre: dict) -> None:
+        from . import fabrication, pdf_livre
+
+        self.en_cours = f"PDF A5 du livre {livre['id']}"
+        dossier = self.base.dossier(livre["id"])
+        pages = self.base.lire("SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 ORDER BY ordre", livre["id"])
+        nom = f"{fabrication.nom_fichier(livre['auteur'], livre['titre'])} - A5.pdf"
+        try:
+            pdf_livre.fabriquer_pdf(dossier, livre, pages, dossier / "sortie" / nom)
+        except Exception as e:  # noqa: BLE001 — l'erreur est montrée sur la fiche du livre
+            log.exception("PDF A5 en échec")
+            self.base.ecrire("UPDATE livres SET pdf_demande = 0, pdf_erreur = ? WHERE id = ?", f"{type(e).__name__} : {e}"[:500], livre["id"])
+        else:
+            self.base.ecrire("UPDATE livres SET pdf_demande = 0, pdf_erreur = '', pdf = ? WHERE id = ?", nom, livre["id"])
+        self.en_cours = ""
 
     def tout_faire(self) -> None:
         """Pour les tests : enchaîne les tâches jusqu'à ce qu'il n'y en ait plus."""

@@ -245,7 +245,8 @@ Avis complet : [`conseil.md`](conseil.md). Ce que l'utilisateur a retenu :
   - **0.2** : import du PDF, inventaire des pages manquantes confirmé à la main, lecture par Mistral, EPUB recomposé simple et PDF d'archive, dépôt dans Grimmory ;
   - **0.3** : écran de relecture image/texte, contre-lecture Marker sur le PC, choix page par page entre « recomposer » et « garder en image » ;
   - **0.4** : prise iPhone page par page avec insertion des pages reprises, fiche par ISBN, PDF A5 soigné.
-  - *Ajusté le 15/11/2026 (demande de l'utilisateur)* : la 0.3.0 livre la relecture et le choix de rendu, plus la reprise d'une page manquante à l'iPhone (une photo à la fois, rangée par son numéro) avancée depuis la 0.4. La contre-lecture Marker suit.
+  - *Ajusté le 15/11/2026 (demande de l'utilisateur)* : la 0.3.0 livre la relecture et le choix de rendu, plus la reprise d'une page manquante à l'iPhone (une photo à la fois, rangée par son numéro) avancée depuis la 0.4. La contre-lecture Marker suit en 0.3.1.
+  - *Livré le 15/11/2026* : 0.3.1 (contre-lecture Marker sur le PC, porte `/calcul` à jeton, mots à relire : substitutions de 1 à 4 mots entre les deux lectures, page entière si l'accord est sous 0,5) et 0.4.0 (fiche par l'ISBN, BnF puis Open Library, proposée seulement ; couverture choisie ; PDF A5 par WeasyPrint en tâche de fond). Restent hors livraison : la prise d'un livre entier à l'iPhone et le code-barres ISBN.
 - **Pas de test préalable** : la 0.2 sert elle-même de test, sur le PDF de 400 Mo.
 - Avis du conseil suivis dans la 0.2 :
   - l'appel à Mistral tient dans une seule fonction (`app/mistral.py`) ;

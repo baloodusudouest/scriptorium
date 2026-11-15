@@ -12,6 +12,7 @@ services:
       - SCRIPTORIUM_PASSWORD=${APPS_PASSWORD}             # mot de passe commun à toutes les applis
       - SCRIPTORIUM_MISTRAL_CLE=${SCRIPTORIUM_MISTRAL_CLE:-}       # clé d'API Mistral ; vide : lecture non proposée
       - SCRIPTORIUM_JETON_CALCUL=${SCRIPTORIUM_JETON_CALCUL:-}     # jeton du PC de calcul (contre-lecture Marker) ; vide : porte fermée
+      - SCRIPTORIUM_RECHERCHE_WEB=${SCRIPTORIUM_RECHERCHE_WEB:-oui}  # « non » : pas de fiche cherchée à la BnF ni sur Open Library
       - SCRIPTORIUM_LECTURE_SEULE=${SCRIPTORIUM_LECTURE_SEULE:-}   # « oui » : rien n'est envoyé à Mistral ni déposé dans Grimmory
     volumes:
       - ${SCRIPTORIUM_DATA_DIR}:/data                     # livres importés, pages, texte lu, livres fabriqués

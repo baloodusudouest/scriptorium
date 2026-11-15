@@ -164,8 +164,13 @@
         <img src={`/api/livres/${id}/pages/${rang}.jpg?cote=1400&v=${version}`} alt={`Image de la ${nom(page).toLowerCase()}`}
              class="max-h-[78vh] w-full object-contain" />
       </a>
-      <figcaption class="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+      <figcaption class="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
         <span>Rang {page.rang} {page.source === 'photo' ? '(photo ajoutée)' : 'du PDF'}</span>
+        {#if (l.couverture ?? l.liste_pages.find((p) => !p.ecartee)?.rang) === rang}
+          <span class="text-xs">couverture du livre</span>
+        {:else}
+          <Button variant="ghost" size="sm" onclick={() => geste('couverture', `/api/livres/${id}/couverture`, { rang })} disabled={attente === 'couverture'}>Prendre comme couverture</Button>
+        {/if}
         <Button variant="ghost" size="sm" onclick={tourner} disabled={attente === 'tourner'}>
           <RotateCw class="size-4" aria-hidden="true" /> Tourner
         </Button>
