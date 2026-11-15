@@ -131,6 +131,49 @@
     return items
   })
 
+  // Tuiles du bilan des pages (0.4.1) : inventaire des numéros, puis contre-lecture par le PC
+  let filtre = $state(null)
+  function tuiles(b) {
+    const inv = b.inventaire, k = b.contre
+    const sansNumero = l.liste_pages.filter((p) => !p.ecartee && p.numero == null).length
+    const enAttente = k ? k.attente + k.calcul : 0
+    return [
+      { id: 'manquantes', nom: 'Manquantes', n: inv.manquantes.length, alerte: true, valeur: plages(inv.manquantes) || 'aucune' },
+      { id: 'a_verifier', nom: 'Trous à vérifier', n: inv.a_verifier.length, alerte: true,
+        valeur: inv.a_verifier.length ? inv.a_verifier.map((v) => `${v.manquent} entre ${v.entre[0]} et ${v.entre[1]}`).join(' ; ') : 'rien' },
+      { id: 'doubles', nom: 'En double', n: inv.doubles.length, valeur: plages(inv.doubles) || 'aucune' },
+      { id: 'sans_numero', nom: 'Sans numéro lu', n: sansNumero, valeur: `${sansNumero}` },
+      { id: 'a_relire', nom: 'Mots à relire (PC)', n: k?.a_relire.length ?? 0, alerte: true,
+        valeur: !k?.pc ? 'pas de PC' : k.a_relire.length ? `${k.a_relire.length} page${k.a_relire.length > 1 ? 's' : ''}`
+          : enAttente ? `PC : ${k.faite} faite${k.faite > 1 ? 's' : ''}, ${enAttente} en attente` : 'rien' },
+    ]
+  }
+  const nomsFiltre = { manquantes: 'pages manquantes', a_verifier: 'trous à vérifier', doubles: 'pages en double',
+                       sans_numero: 'pages sans numéro lu', a_relire: 'pages aux mots à relire' }
+  function garder(it, b) {
+    if (!filtre) return true
+    const inv = b.inventaire
+    if (filtre === 'manquantes') return it.type === 'trou'
+    if (filtre === 'a_verifier') {
+      if (it.type === 'doute') return true
+      // les pages qui bordent un trou à vérifier, et les pages sans numéro entre les deux
+      return it.type === 'page' && !it.ecartee && inv.a_verifier.some((v) =>
+        it.numero === v.entre[0] || it.numero === v.entre[1] || (it.numero == null && entre(it, v.entre)))
+    }
+    if (it.type !== 'page') return false
+    if (filtre === 'doubles') return !it.ecartee && inv.doubles.includes(it.numero)
+    if (filtre === 'sans_numero') return !it.ecartee && it.numero == null
+    if (filtre === 'a_relire') return aRelire.has(it.rang)
+    return true
+  }
+  // Une page sans numéro est « entre » a et b si elle se trouve après la page a et avant la page b dans l'ordre du livre
+  function entre(page, [a, b]) {
+    const liste = l.liste_pages
+    const i = liste.findIndex((p) => p.rang === page.rang)
+    const ia = liste.findIndex((p) => p.numero === a), ib = liste.findIndex((p) => p.numero === b)
+    return ia >= 0 && ib >= 0 && i > ia && i < ib
+  }
+
   const plages = (liste) => {
     if (!liste?.length) return ''
     const out = []
@@ -229,27 +272,33 @@
         <h2 id="etape-pages" class="text-xl font-semibold">1. Les pages</h2>
         {#if l.inventaire_confirme}<Badge variant="secondary">Inventaire confirmé</Badge>{/if}
       </div>
-      <dl class="mb-4 grid max-w-3xl grid-cols-2 gap-3 md:grid-cols-4">
-        <div class="rounded-xl border bg-card p-3"><dt class="text-sm text-muted-foreground">Manquantes</dt>
-          <dd class="mt-1 font-medium {b.inventaire.manquantes.length ? 'text-primary' : ''}">{plages(b.inventaire.manquantes) || 'aucune'}</dd></div>
-        <div class="rounded-xl border bg-card p-3"><dt class="text-sm text-muted-foreground">À vérifier</dt>
-          <dd class="mt-1 font-medium">{b.inventaire.a_verifier.length ? b.inventaire.a_verifier.map((v) => `${v.manquent} entre ${v.entre[0]} et ${v.entre[1]}`).join(' ; ') : 'rien'}</dd></div>
-        <div class="rounded-xl border bg-card p-3"><dt class="text-sm text-muted-foreground">En double</dt>
-          <dd class="mt-1 font-medium">{plages(b.inventaire.doubles) || 'aucune'}</dd></div>
-        <div class="rounded-xl border bg-card p-3"><dt class="text-sm text-muted-foreground">Sans numéro lu</dt>
-          <dd class="mt-1 font-medium">{b.inventaire.sans_numero.length}</dd></div>
-      </dl>
+      <!-- Chaque tuile filtre la grille des pages : un clic montre les pages en question, un second clic montre tout -->
+      <div class="mb-4 grid max-w-4xl grid-cols-2 gap-3 md:grid-cols-5" role="group" aria-label="Montrer seulement">
+        {#each tuiles(b) as t (t.id)}
+          <button type="button" aria-pressed={filtre === t.id} disabled={!t.n} onclick={() => (filtre = filtre === t.id ? null : t.id)}
+                  class="rounded-xl border bg-card p-3 text-left transition-colors enabled:hover:border-primary/60 aria-pressed:border-primary aria-pressed:bg-secondary disabled:cursor-default">
+            <span class="block text-sm text-muted-foreground">{t.nom}</span>
+            <span class="mt-1 block font-medium {t.n && t.alerte ? 'text-primary' : ''}">{t.valeur}</span>
+          </button>
+        {/each}
+      </div>
       <p class="mb-4 max-w-3xl text-sm text-muted-foreground">
         Les numéros viennent de Mistral dès qu'une page est lue (avant, d'une lecture locale moins sûre).
         Vérifie avec le sommaire du livre : un numéro faux se corrige d'un clic, une page en double s'écarte.
         Une page manquante se reprend à l'iPhone avec « Prendre » : la photo est redressée, recadrée et rangée à sa place.
-        Un clic sur une page ouvre sa relecture (image et texte côte à côte).
+        Un clic sur une page ouvre sa relecture (image et texte côte à côte). Un clic sur une tuile ci-dessus ne montre que les pages en question.
       </p>
       <input bind:this={photoInput} type="file" accept="image/*" capture="environment" class="hidden" onchange={photoChoisie} tabindex="-1" aria-hidden="true" />
       {#if attente === 'photo'}<p class="mb-3 text-sm" role="status">Envoi de la photo…</p>{/if}
 
+      {#if filtre}
+        <p class="mb-3 flex flex-wrap items-center gap-3 text-sm" role="status">
+          <span>Seulement les {nomsFiltre[filtre]} ({grille.filter((it) => garder(it, b)).length}).</span>
+          <Button size="sm" variant="ghost" onclick={() => (filtre = null)}>Tout montrer</Button>
+        </p>
+      {/if}
       <ul class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8" aria-label="Pages du PDF">
-        {#each grille as it (it.type === 'page' ? 'p' + it.rang : it.type + (it.de ?? it.entre?.join('-')))}
+        {#each grille.filter((it) => garder(it, b)) as it (it.type === 'page' ? 'p' + it.rang : it.type + (it.de ?? it.entre?.join('-')))}
           {#if it.type === 'trou'}
             <li class="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/70 p-2 text-center text-sm text-primary">
               <span>{it.de === it.a ? `Page ${it.de}` : `Pages ${it.de} à ${it.a}`}<span class="block text-xs">manquante{it.de === it.a ? '' : 's'}</span></span>

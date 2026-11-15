@@ -107,6 +107,22 @@ def test_livre_fabrique_et_services(navigateur, adresse, taille):
     assert erreurs == []
 
 
+def test_tuiles_du_bilan_filtrent_les_pages(navigateur, adresse):
+    """0.4.1 : un clic sur une tuile du bilan ne montre que les pages en question ; un second clic montre tout."""
+    page, erreurs = ouvrir(navigateur, adresse, "pc")
+    page.get_by_text("Le grand livre des cocktails").click()
+    page.get_by_text("Pages 4 à 5").wait_for()
+    toutes = page.locator("ul[aria-label='Pages du PDF'] img").count()
+    page.get_by_role("button", name=re.compile("^Manquantes")).click()
+    page.get_by_text("Seulement les pages manquantes").wait_for()
+    assert page.locator("ul[aria-label='Pages du PDF'] img").count() == 0
+    assert page.get_by_role("button", name="Prendre la page 4 en photo").is_visible()
+    page.get_by_role("button", name="Tout montrer").click()
+    assert page.locator("ul[aria-label='Pages du PDF'] img").count() == toutes
+    assert page.get_by_role("button", name=re.compile("^Mots à relire")).is_visible()
+    assert erreurs == []
+
+
 def test_page_manquante_prise_en_photo(navigateur, adresse, tmp_path):
     """0.3 : « Prendre » sur la case des pages 4 à 5 envoie une photo ; la page 4 prend sa place."""
     from tests.test_relecture import photo_de_page

@@ -1,5 +1,14 @@
 # Journal des versions — Scriptorium
 
+## 0.4.1 — 15/11/2026 — tuiles du bilan cliquables
+
+Demande de l'utilisateur, qui lisait « À vérifier : rien » comme « rien à vérifier avec le PC ».
+
+- Les tuiles du bilan des pages filtrent la grille : un clic ne montre que les pages manquantes (avec leur bouton « Prendre »), les trous à vérifier (et les pages qui les bordent), les pages en double, les pages sans numéro lu ; un second clic, ou « Tout montrer », montre tout. Une tuile vide n'est pas cliquable.
+- « À vérifier » devient « Trous à vérifier » : il s'agit de la numérotation, pas du texte.
+- Nouvelle tuile « Mots à relire (PC) » : les pages signalées par la contre-lecture, ou l'avancement du PC (« PC : 40 faites, 260 en attente »), ou « pas de PC ».
+- Test d'écran du filtre (69 tests).
+
 ## 0.4.0 — 15/11/2026 — fiche par l'ISBN, couverture, PDF A5
 
 - **Fiche du livre** : éditeur, année et ISBN en plus du titre et de l'auteur (plusieurs auteurs séparés par des virgules). L'ISBN est vérifié (clé de contrôle) et gardé en ISBN-13 ; un ISBN-10 est converti.
