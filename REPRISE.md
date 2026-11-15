@@ -2,8 +2,9 @@
 
 Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaque fin de session, dans le même commit que le code.
 
-## État (14/11/2026)
+## État (15/11/2026)
 
+- **0.3.0** (15/11/2026) : reprise d'une page manquante à l'iPhone, rangée à sa place d'après son numéro ; écran de relecture d'une page (image et texte, correction gardée, relecture d'une seule page par Mistral, « garder en image », rotation). Voir `CHANGELOG.md`.
 - **0.2.4** (15/11/2026) : icône propre (lettrine « S » sépia). Tuile dans l'Anneau (Médias, à côté de Grimmory), posée dans Atlas.
 - **0.2.3** (14/11/2026) : EPUB lisible par Comptoir (recette jamais coupée entre deux fichiers, ingrédients en liste, repères de page dans le fil).
 - **0.2.2** (14/11/2026) : Mistral lit sans attendre l'inventaire et donne les numéros de page, EPUB d'essai (pages lues), page de l'original dans l'EPUB (repère et `page-list`), dépôt après inventaire confirmé.
@@ -30,8 +31,9 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
    - justesse de l'inventaire face au sommaire ;
    - qualité du texte lu par Mistral ;
    - rendu de l'EPUB dans Grimmory et sur la Kindle.
-2. Livraison 0.3 : relecture image/texte, contre-lecture Marker (`pc/calcul.yml`), choix « recomposer / garder en image » par page.
-3. Livraison 0.4 : prise iPhone page par page et insertion des pages manquantes à leur place, fiche par ISBN, PDF A5.
+2. Faits en 0.3.0 : relecture image/texte, choix « recomposer / garder en image », reprise des pages manquantes à l'iPhone. **Reste de la 0.3** : contre-lecture Marker sur le PC (`pc/calcul.yml`) et mots à relire surlignés dans l'écran de relecture.
+3. Livraison 0.4 : fiche par ISBN, PDF A5 soigné. (La prise iPhone faite en 0.3.0 est une page à la fois, sans file d'attente hors ligne : à revoir si un livre entier doit être pris à l'iPhone.)
+4. Sur le vrai livre, à surveiller : les listes numérotées (« ordre de préparation ») qui, dans l'essai de Comptoir, ne gardaient que les numéros 1. à 7. sans leur texte.
 
 ## Décisions tranchées
 

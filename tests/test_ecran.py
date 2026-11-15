@@ -105,3 +105,45 @@ def test_livre_fabrique_et_services(navigateur, adresse, taille):
     page.get_by_text("Journal").wait_for()
     page.get_by_text("Lecture par Mistral").first.wait_for()
     assert erreurs == []
+
+
+def test_page_manquante_prise_en_photo(navigateur, adresse, tmp_path):
+    """0.3 : « Prendre » sur la case des pages 4 à 5 envoie une photo ; la page 4 prend sa place."""
+    from tests.test_relecture import photo_de_page
+    photo = tmp_path / "page4.jpg"
+    photo.write_bytes(photo_de_page())
+    page, erreurs = ouvrir(navigateur, adresse, "pc")
+    page.get_by_text("Le grand livre des cocktails").click()
+    page.get_by_text("Pages 4 à 5").wait_for()
+    with page.expect_file_chooser() as choix:
+        page.get_by_role("button", name="Prendre la page 4 en photo").click()
+    choix.value.set_files(str(photo))
+    page.get_by_role("button", name="Prendre la page 5 en photo").wait_for()   # il ne manque plus que la 5
+    assert page.locator("ul[aria-label='Pages du PDF'] img").count() == 13
+    assert page.get_by_label("Reprise à l'iPhone").count() == 1
+    assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_relecture_d_une_page(navigateur, adresse, taille):
+    """0.3 : un clic sur une page ouvre l'image et le texte ; on corrige, on enregistre, on garde en image."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.get_by_text("Daiquiri et compagnie").click()
+    page.get_by_text("1. Les pages").wait_for()
+    rang = 2 if taille == "pc" else 4             # serveur commun aux deux tailles : une page chacune
+    page.locator("ul[aria-label='Pages du PDF'] a").nth(rang - 1).click()
+    zone = page.get_by_label(re.compile("Texte de la page"))
+    zone.wait_for()
+    assert "gin" in zone.input_value()
+    sans_debordement(page)
+    zone.fill(f"# Daiquiri corrigé ({taille})\n\n- 60 ml de rhum\n- 25 ml de citron vert")
+    page.get_by_role("button", name="Enregistrer le texte").click()
+    page.get_by_text("texte corrigé à la main").wait_for()
+    page.get_by_role("button", name="Garder en image").click()
+    page.get_by_text("gardée en image").wait_for()
+    page.get_by_role("button", name="Recomposer (texte)").click()
+    page.get_by_role("button", name="Page suivante").click()
+    page.wait_for_url(re.compile(rf"/page/{rang + 1}$"))
+    page.get_by_role("link", name="Daiquiri et compagnie").click()
+    page.get_by_text("corrigée").first.wait_for()
+    assert erreurs == []

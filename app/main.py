@@ -18,7 +18,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, fabrication, inventaire, mistral
+from . import __version__, capture, fabrication, inventaire, mistral
 from .auth import COMMUN, DUREE, Sessions
 from .base import Base, maintenant
 from .config import APPLI, Config, charger
@@ -152,8 +152,8 @@ def _livre(livre_id: int) -> dict:
 
 
 def _pages(livre_id: int) -> list[dict]:
-    return ETAT["base"].lire("SELECT rang, numero_lu, numero_mistral, numero, numero_manuel, ecartee, lecture, lecture_erreur, pages_facturees "
-                             "FROM pages WHERE livre_id = ? ORDER BY rang", livre_id)
+    return ETAT["base"].lire("SELECT rang, ordre, source, numero_lu, numero_mistral, numero, numero_manuel, ecartee, lecture, "
+                             "lecture_erreur, pages_facturees, rendu_choisi, texte_main FROM pages WHERE livre_id = ? ORDER BY ordre", livre_id)
 
 
 def _bilan(livre: dict, pages: list[dict]) -> dict:
@@ -288,7 +288,7 @@ def image_page(livre_id: int, rang: int, cote: int = 0):
     chemin = ETAT["base"].dossier(livre_id) / "pages" / f"{rang:04d}.jpg"
     if not chemin.is_file():
         raise HTTPException(404, "Page inconnue.")
-    entetes = {"Cache-Control": "private, max-age=86400"}   # les images, elles, peuvent rester en cache
+    entetes = {"Cache-Control": "private, max-age=60"}   # court : une page peut être tournée
     if cote:
         return Response(vignette(chemin, max(80, min(cote, 1600))), media_type="image/jpeg", headers=entetes)
     return FileResponse(chemin, media_type="image/jpeg", headers=entetes)
@@ -316,6 +316,113 @@ def modifier_page(livre_id: int, rang: int, corps: dict = Body(...)):
                     n, 1 if n is not None else 0, livre_id, rang)
     if "ecartee" in corps:
         base.ecrire("UPDATE pages SET ecartee = ? WHERE livre_id = ? AND rang = ?", 1 if corps["ecartee"] else 0, livre_id, rang)
+    if "rendu" in corps:   # « image » : la page entre en image dans le livre ; « auto » : en texte dès qu'elle est lue
+        if corps["rendu"] not in ("auto", "image"):
+            raise HTTPException(422, "Rendu « auto » ou « image ».")
+        base.ecrire("UPDATE pages SET rendu_choisi = ? WHERE livre_id = ? AND rang = ?", corps["rendu"], livre_id, rang)
+    return _vue(_livre(livre_id), avec_pages=True)
+
+
+def _page(livre_id: int, rang: int) -> dict:
+    page = ETAT["base"].un("SELECT * FROM pages WHERE livre_id = ? AND rang = ?", livre_id, rang)
+    if not page:
+        raise HTTPException(404, "Page inconnue.")
+    return page
+
+
+@app.put("/api/livres/{livre_id}/pages/ajouter")
+async def ajouter_page(livre_id: int, numero: int, request: Request):
+    """Page reprise à l'iPhone (une page manquante du PDF) : la photo est remise droite, recadrée, puis insérée
+    à sa place d'après son numéro imprimé. Elle attend ensuite sa lecture comme les autres."""
+    livre_ = _livre(livre_id)
+    if livre_["etat"] not in ("inventaire", "lecture", "pret"):
+        raise HTTPException(409, "Les pages du livre ne sont pas encore découpées.")
+    if not 0 < numero < 10000:
+        raise HTTPException(422, "Numéro de page entre 1 et 9999.")
+    contenu = await request.body()
+    if not contenu or len(contenu) > 40 * 10**6:
+        raise HTTPException(422, "Photo absente ou trop lourde (40 Mo au plus).")
+    try:
+        jpeg = capture.preparer_photo(contenu)
+    except ValueError as e:
+        raise HTTPException(422, f"Photo illisible : {e}") from e
+    base: Base = ETAT["base"]
+    pages = base.lire("SELECT rang, ordre, numero, ecartee FROM pages WHERE livre_id = ? ORDER BY ordre", livre_id)
+    rang = max((p["rang"] for p in pages), default=0) + 1
+    ordre = _place(pages, numero)
+    (base.dossier(livre_id) / "pages").mkdir(parents=True, exist_ok=True)
+    (base.dossier(livre_id) / "pages" / f"{rang:04d}.jpg").write_bytes(jpeg)
+    base.ecrire("INSERT INTO pages (livre_id, rang, ordre, source, numero, numero_manuel) VALUES (?, ?, ?, 'photo', ?, 1)",
+                livre_id, rang, ordre, numero)
+    if livre_["etat"] == "pret":   # une page à lire : le livre n'est plus « prêt »
+        base.ecrire("UPDATE livres SET etat = 'lecture' WHERE id = ?", livre_id)
+    return {**_vue(_livre(livre_id), avec_pages=True), "ajoutee": rang}
+
+
+def _place(pages: list[dict], numero: int) -> float:
+    """Place (ordre) d'une page de numéro donné : juste après la dernière page de numéro inférieur et les pages
+    sans numéro qui la suivent (photos pleine page), avant la page de numéro supérieur."""
+    numerotees = [p for p in pages if p["numero"] is not None and not p["ecartee"]]
+    avant = [p for p in numerotees if p["numero"] < numero]
+    apres = [p for p in numerotees if p["numero"] > numero]
+    if avant:
+        precedente = max(avant, key=lambda p: (p["numero"], p["ordre"]))
+        suivantes = [p for p in pages if p["ordre"] > precedente["ordre"]]
+        borne = min((p["ordre"] for p in apres if p["ordre"] > precedente["ordre"]), default=None)
+        # Les pages sans numéro qui suivent la précédente (avant la borne) restent avec elle
+        apres_sans = [p for p in suivantes if p["numero"] is None and (borne is None or p["ordre"] < borne)]
+        depart = max([precedente["ordre"]] + [p["ordre"] for p in apres_sans])
+        fin = min((p["ordre"] for p in pages if p["ordre"] > depart), default=depart + 2)
+        return (depart + fin) / 2
+    if apres:
+        suivante = min(apres, key=lambda p: p["ordre"])
+        debut = max((p["ordre"] for p in pages if p["ordre"] < suivante["ordre"]), default=suivante["ordre"] - 2)
+        return (debut + suivante["ordre"]) / 2
+    return max((p["ordre"] for p in pages), default=0) + 1
+
+
+@app.post("/api/livres/{livre_id}/pages/{rang}/texte")
+def enregistrer_texte(livre_id: int, rang: int, corps: dict = Body(...)):
+    """Texte corrigé à la relecture : il remplace celui de Mistral, et une nouvelle lecture ne l'écrase plus."""
+    _livre(livre_id)
+    _page(livre_id, rang)
+    texte = str(corps.get("markdown", ""))
+    if len(texte) > 200_000:
+        raise HTTPException(413, "Texte trop long pour une page.")
+    lu = ETAT["base"].dossier(livre_id) / "lu"
+    lu.mkdir(parents=True, exist_ok=True)
+    (lu / f"{rang:04d}.md").write_text(texte, encoding="utf-8")
+    ETAT["base"].ecrire("UPDATE pages SET lecture = 'faite', lecture_erreur = '', texte_main = 1 WHERE livre_id = ? AND rang = ?",
+                        livre_id, rang)
+    return _vue(_livre(livre_id), avec_pages=True)
+
+
+@app.post("/api/livres/{livre_id}/pages/{rang}/relire")
+def relire_page(livre_id: int, rang: int):
+    """Fait relire cette page seule par Mistral (le texte corrigé à la main est alors abandonné)."""
+    _livre(livre_id)
+    _page(livre_id, rang)
+    if not ETAT["cfg"].mistral_cle:
+        raise HTTPException(409, "Aucune clé Mistral dans la stack (SCRIPTORIUM_MISTRAL_CLE).")
+    exiger_ecriture("envoyé à Mistral")
+    base: Base = ETAT["base"]
+    base.ecrire("UPDATE pages SET lecture = 'attente', lecture_erreur = '', texte_main = 0, ecartee = 0 WHERE livre_id = ? AND rang = ?",
+                livre_id, rang)
+    base.ecrire("UPDATE livres SET etat = 'lecture', lecture_demandee = 1, erreur = '' WHERE id = ?", livre_id)
+    return _vue(_livre(livre_id), avec_pages=True)
+
+
+@app.post("/api/livres/{livre_id}/pages/{rang}/tourner")
+def tourner_page(livre_id: int, rang: int):
+    """Tourne l'image d'un quart de tour (photo prise de travers). Une page déjà lue repasse « à lire »."""
+    _livre(livre_id)
+    page = _page(livre_id, rang)
+    chemin = ETAT["base"].dossier(livre_id) / "pages" / f"{rang:04d}.jpg"
+    if not chemin.is_file():
+        raise HTTPException(404, "Image de la page absente.")
+    capture.tourner(chemin, 90)
+    if page["lecture"] != "attente" and not page["texte_main"]:
+        ETAT["base"].ecrire("UPDATE pages SET lecture = 'attente' WHERE id = ?", page["id"])
     return _vue(_livre(livre_id), avec_pages=True)
 
 
@@ -367,7 +474,7 @@ def fabriquer(livre_id: int, partiel: bool = False):
         raise HTTPException(409, "Les pages ne sont pas encore découpées.")
     base: Base = ETAT["base"]
     filtre = "AND lecture IN ('faite', 'douteuse')" if partiel else ""
-    pages = base.lire(f"SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 {filtre} ORDER BY rang", livre_id)
+    pages = base.lire(f"SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 {filtre} ORDER BY ordre", livre_id)
     if not pages:
         raise HTTPException(409, "Aucune page lue pour l'instant." if partiel else "Aucune page à mettre dans le livre.")
     dossier = base.dossier(livre_id)

@@ -110,7 +110,7 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
         rang = p["rang"]
         md_fichier = lu / f"{rang:04d}.md"
         commence_par_titre = False
-        if p["lecture"] == "faite" and md_fichier.exists():
+        if p["lecture"] == "faite" and md_fichier.exists() and p.get("rendu_choisi", "auto") != "image":
             texte = nettoyer(md_fichier.read_text(encoding="utf-8"), rang, images_connues)
             commence_par_titre = texte.lstrip().startswith("#")
             corps = md_lib.markdown(texte, extensions=["tables", "footnotes", "toc", "sane_lists"], output_format="xhtml")
@@ -119,7 +119,7 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
                            if m.group(1) == "id" or m.group(2) else m.group(0), corps)
             utilisees.update(re.findall(r'src="images/([^"]+)"', corps))
         else:
-            # Page douteuse ou non lue : elle entre en image, le livre reste complet.
+            # Page douteuse, non lue ou « gardée en image » : elle entre en image, le livre reste complet.
             nom = f"page-{rang:04d}.jpg"
             corps = f'<div class="page-image"><img src="images/{nom}" alt="Page {html.escape(str(p.get("numero") or rang))}"/></div>'
             livre_epub.add_item(epub.EpubImage(uid=f"pageimg{rang}", file_name=f"images/{nom}", media_type="image/jpeg",

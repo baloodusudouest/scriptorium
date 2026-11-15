@@ -12,6 +12,7 @@
   import Connexion from './pages/Connexion.svelte'
   import Livres from './pages/Livres.svelte'
   import Livre from './pages/Livre.svelte'
+  import Page from './pages/Page.svelte'
   import Services from './pages/Services.svelte'
   import Reglages from './pages/Reglages.svelte'
 
@@ -26,6 +27,7 @@
   let session = $state({ version: '', lecture_seule: false })
   let page = $state(lirePage())
   let livreId = $state(lireLivre())
+  let pageRang = $state(lireRang())
 
   function lirePage() {
     const p = location.hash.replace('#/', '').split('/')[0]
@@ -34,6 +36,10 @@
   }
   function lireLivre() {
     const m = location.hash.match(/^#\/livre\/(\d+)/)
+    return m ? Number(m[1]) : null
+  }
+  function lireRang() {   // #/livre/12/page/40 : relecture d'une page
+    const m = location.hash.match(/^#\/livre\/\d+\/page\/(\d+)/)
     return m ? Number(m[1]) : null
   }
 
@@ -55,7 +61,7 @@
   onMount(verifier)
 </script>
 
-<svelte:window onhashchange={() => { page = lirePage(); livreId = lireLivre() }} />
+<svelte:window onhashchange={() => { page = lirePage(); livreId = lireLivre(); pageRang = lireRang() }} />
 
 {#if connecte === false}
   <Connexion onconnecte={verifier} />
@@ -93,12 +99,14 @@
           Mode lecture seule : l'appli lit tout mais n'écrit nulle part (SCRIPTORIUM_LECTURE_SEULE).
         </p>
       {/if}
-      {#key page + (livreId ?? '')}
+      {#key page + (livreId ?? '') + '/' + (pageRang ?? '')}
         <div in:fly={{ y: 6, duration: 180 }}>
           {#if page === 'connexion'}
             <Services ondeconnecte={() => (connecte = false)} />
           {:else if page === 'reglages'}
             <Reglages {session} {deconnecter} />
+          {:else if livreId && pageRang}
+            <Page id={livreId} rang={pageRang} lectureSeule={session.lecture_seule} ondeconnecte={() => (connecte = false)} />
           {:else if livreId}
             <Livre id={livreId} lectureSeule={session.lecture_seule} ondeconnecte={() => (connecte = false)} />
           {:else}

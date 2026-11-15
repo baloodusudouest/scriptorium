@@ -81,6 +81,15 @@ class Base:
             self._cnx.execute("ALTER TABLE pages ADD COLUMN numero_mistral INTEGER")
         if "numero_manuel" not in colonnes:    # 0.2.2 : numéro corrigé à la main, jamais remplacé
             self._cnx.execute("ALTER TABLE pages ADD COLUMN numero_manuel INTEGER NOT NULL DEFAULT 0")
+        if "ordre" not in colonnes:            # 0.3.0 : place dans le livre (une page reprise s'insère entre deux)
+            self._cnx.execute("ALTER TABLE pages ADD COLUMN ordre REAL")
+            self._cnx.execute("UPDATE pages SET ordre = rang")
+        if "source" not in colonnes:           # 0.3.0 : « pdf » (découpée) ou « photo » (reprise à l'iPhone)
+            self._cnx.execute("ALTER TABLE pages ADD COLUMN source TEXT NOT NULL DEFAULT 'pdf'")
+        if "rendu_choisi" not in colonnes:     # 0.3.0 : « auto » (texte si lu) ou « image » (gardée en image)
+            self._cnx.execute("ALTER TABLE pages ADD COLUMN rendu_choisi TEXT NOT NULL DEFAULT 'auto'")
+        if "texte_main" not in colonnes:       # 0.3.0 : texte corrigé à la relecture (Mistral ne l'écrase plus)
+            self._cnx.execute("ALTER TABLE pages ADD COLUMN texte_main INTEGER NOT NULL DEFAULT 0")
 
     # ------------------------------------------------------------ accès bas niveau
     def lire(self, sql: str, *args) -> list[dict]:

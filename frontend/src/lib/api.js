@@ -51,3 +51,13 @@ export async function envoyerFichier(livreId, fichier, surAvance) {
   }
   return api.post(`/api/livres/${livreId}/envoi/fin`)
 }
+
+// Page reprise à l'iPhone : la photo part telle quelle (JPEG ou HEIC), le serveur la redresse et la recadre.
+export async function envoyerPhoto(livreId, numero, fichier) {
+  const r = await fetch(`/api/livres/${livreId}/pages/ajouter?numero=${numero}`, {
+    method: 'PUT', body: fichier, credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' },
+  })
+  const d = await r.json().catch(() => ({}))
+  if (!r.ok) throw new ErreurApi(d.detail || `Le serveur a répondu ${r.status}.`, r.status)
+  return d
+}

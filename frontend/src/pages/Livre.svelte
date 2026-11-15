@@ -3,10 +3,12 @@
   // 0.2.2 : la lecture par Mistral peut partir dès la découpe ; elle donne aussi le numéro imprimé de chaque page,
   // qui nourrit l'inventaire. Un EPUB d'essai (pages déjà lues) se fabrique à tout moment ; le dépôt dans
   // Grimmory attend l'inventaire confirmé.
+  // 0.3.0 : une page manquante se reprend à l'iPhone (« Prendre ») ; un clic sur une page ouvre sa relecture.
   import { onMount } from 'svelte'
   import ArrowLeft from '@lucide/svelte/icons/arrow-left'
   import Download from '@lucide/svelte/icons/download'
-  import { api } from '$lib/api.js'
+  import Camera from '@lucide/svelte/icons/camera'
+  import { api, envoyerPhoto } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import { Badge } from '$lib/components/ui/badge/index.js'
   import { Progress } from '$lib/components/ui/progress/index.js'
@@ -22,6 +24,30 @@
   let numeroSaisi = $state('')
   let suppression = $state(false)
   let lienEssai = $state('')
+  let numeroReprise = $state('')      // reprise d'une page dont le trou n'est pas montré (fin du livre, doute)
+  let photoInput                      // champ fichier caché : ouvre l'appareil photo sur iPhone
+  let photoNumero = null
+
+  // « Prendre » : ouvre l'appareil photo (ou le choix d'un fichier sur PC), puis envoie la photo avec son numéro.
+  function prendre(numero) {
+    photoNumero = Number(numero)
+    if (!photoNumero) return
+    photoInput.value = ''
+    photoInput.click()
+  }
+  async function photoChoisie() {
+    const fichier = photoInput.files?.[0]
+    if (!fichier || !photoNumero) return
+    attente = 'photo'
+    message = ''
+    try {
+      const r = await envoyerPhoto(id, photoNumero, fichier)
+      l = r
+      numeroReprise = ''
+    } catch (err) {
+      if (err.statut === 401) ondeconnecte(); else message = err.message
+    } finally { attente = '' }
+  }
 
   async function essai() {
     lienEssai = ''
@@ -168,14 +194,20 @@
       <p class="mb-4 max-w-3xl text-sm text-muted-foreground">
         Les numéros viennent de Mistral dès qu'une page est lue (avant, d'une lecture locale moins sûre).
         Vérifie avec le sommaire du livre : un numéro faux se corrige d'un clic, une page en double s'écarte.
-        Les pages manquantes apparaissent à leur place ; leur reprise à l'iPhone viendra plus tard.
+        Une page manquante se reprend à l'iPhone avec « Prendre » : la photo est redressée, recadrée et rangée à sa place.
+        Un clic sur une page ouvre sa relecture (image et texte côte à côte).
       </p>
+      <input bind:this={photoInput} type="file" accept="image/*" capture="environment" class="hidden" onchange={photoChoisie} tabindex="-1" aria-hidden="true" />
+      {#if attente === 'photo'}<p class="mb-3 text-sm" role="status">Envoi de la photo…</p>{/if}
 
       <ul class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8" aria-label="Pages du PDF">
         {#each grille as it (it.type === 'page' ? 'p' + it.rang : it.type + (it.de ?? it.entre?.join('-')))}
           {#if it.type === 'trou'}
-            <li class="flex aspect-[3/4] flex-col items-center justify-center rounded-lg border-2 border-dashed border-primary/70 p-2 text-center text-sm text-primary">
-              {it.de === it.a ? `Page ${it.de}` : `Pages ${it.de} à ${it.a}`}<span class="text-xs">manquante{it.de === it.a ? '' : 's'}</span>
+            <li class="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/70 p-2 text-center text-sm text-primary">
+              <span>{it.de === it.a ? `Page ${it.de}` : `Pages ${it.de} à ${it.a}`}<span class="block text-xs">manquante{it.de === it.a ? '' : 's'}</span></span>
+              <Button size="sm" variant="outline" onclick={() => prendre(it.de)} disabled={attente === 'photo'} aria-label={`Prendre la page ${it.de} en photo`}>
+                <Camera class="size-4" aria-hidden="true" /> Prendre {it.de === it.a ? '' : it.de}
+              </Button>
             </li>
           {:else if it.type === 'doute'}
             <li class="flex aspect-[3/4] flex-col items-center justify-center rounded-lg border-2 border-dashed p-2 text-center text-xs text-muted-foreground">
@@ -183,10 +215,11 @@
             </li>
           {:else}
             <li class="flex flex-col gap-1 {it.ecartee ? 'opacity-40' : ''}">
-              <a href={`/api/livres/${id}/pages/${it.rang}.jpg`} target="_blank" rel="noopener"
-                 class="block overflow-hidden rounded-lg border bg-white {it.numero == null && !it.ecartee ? 'border-dashed border-muted-foreground' : ''}">
+              <a href={`#/livre/${id}/page/${it.rang}`} title="Relire cette page"
+                 class="relative block overflow-hidden rounded-lg border bg-white {it.numero == null && !it.ecartee ? 'border-dashed border-muted-foreground' : ''}">
                 <img src={`/api/livres/${id}/pages/${it.rang}.jpg?cote=260`} alt={`Page ${it.numero ?? 'sans numéro'} (rang ${it.rang} du PDF)`}
                      loading="lazy" class="aspect-[3/4] w-full object-cover object-top" />
+                {#if it.source === 'photo'}<span class="absolute top-1 right-1 rounded bg-background/85 p-0.5" title="Reprise à l'iPhone"><Camera class="size-3.5" aria-label="Reprise à l'iPhone" /></span>{/if}
               </a>
               <div class="flex items-center justify-between gap-1 text-xs">
                 {#if numeroEdite === it.rang}
@@ -203,13 +236,20 @@
                           onclick={() => modifierPage(it.rang, { ecartee: !it.ecartee })}>{it.ecartee ? 'Remettre' : 'Écarter'}</button>
                 {/if}
               </div>
-              {#if !it.ecartee && it.lecture !== 'attente'}
-                <span class="text-xs {it.lecture === 'erreur' ? 'text-destructive' : 'text-muted-foreground'}" title={it.lecture_erreur}>{lectureNom[it.lecture]}</span>
+              {#if !it.ecartee && (it.lecture !== 'attente' || it.rendu_choisi === 'image')}
+                <span class="text-xs {it.lecture === 'erreur' ? 'text-destructive' : 'text-muted-foreground'}" title={it.lecture_erreur}>
+                  {it.rendu_choisi === 'image' ? 'gardée en image' : it.texte_main ? 'corrigée' : lectureNom[it.lecture]}</span>
               {/if}
             </li>
           {/if}
         {/each}
       </ul>
+
+      <form class="mt-4 flex flex-wrap items-center gap-2 text-sm" onsubmit={(e) => { e.preventDefault(); prendre(numeroReprise) }}>
+        <label for="numero-reprise" class="text-muted-foreground">Reprendre une autre page, n°</label>
+        <input id="numero-reprise" bind:value={numeroReprise} inputmode="numeric" class="h-9 w-20 rounded-lg border border-input bg-transparent px-2" />
+        <Button type="submit" size="sm" variant="outline" disabled={!numeroReprise || attente === 'photo'}><Camera class="size-4" aria-hidden="true" /> Prendre</Button>
+      </form>
 
       {#if !l.inventaire_confirme}
         <div class="mt-4 flex flex-wrap items-center gap-2">

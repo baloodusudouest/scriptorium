@@ -1,5 +1,19 @@
 # Journal des versions — Scriptorium
 
+## 0.3.0 — 15/11/2026 — reprise des pages manquantes et relecture page par page
+
+Deux demandes de l'utilisateur, avancées avant la contre-lecture Marker (qui reste à faire).
+
+- **Reprendre une page manquante à l'iPhone.** Chaque case « page manquante » a un bouton « Prendre » : sur l'iPhone il ouvre l'appareil photo (sur PC, le choix d'un fichier). Une autre page (fin du livre, cas douteux) se reprend par son numéro, sous la grille. La photo est remise droite (EXIF), recadrée sur le papier (le recadrage de la sonde, `app/capture.py`), réduite à 2400 px, puis **rangée à sa place d'après son numéro** : après la dernière page de numéro inférieur et les pages sans numéro qui la suivent (photos pleine page), avant la suivante. Elle attend ensuite la lecture par Mistral comme les autres ; son numéro, posé à la main, n'est pas remplacé. Les photos HEIC sont acceptées si `pillow-heif` est là.
+- **Relecture d'une page** (`#/livre/ID/page/RANG`) : un clic sur une page ouvre l'image à gauche et le texte lu à droite (l'un sous l'autre sur iPhone), avec la page précédente et la suivante.
+  - Corriger le texte et l'enregistrer : un texte corrigé à la main n'est plus jamais écrasé par une nouvelle lecture.
+  - « Faire relire par Mistral » : cette seule page repart chez Mistral (le texte corrigé est alors abandonné).
+  - « Recomposer (texte) » / « Garder en image » : une page gardée en image entre en image dans l'EPUB, même lue.
+  - « Tourner » : un quart de tour pour une photo prise de travers ; une page déjà lue repasse « à lire ».
+- Base : les pages ont une place (`ordre`, qui permet d'en insérer une entre deux), une origine (`pdf` ou `photo`), un rendu choisi et la marque « texte corrigé à la main ». Migration automatique des livres existants.
+- Les images de page restent en cache une minute au lieu d'un jour (une page peut être tournée).
+- Tests : 45 au total, dont photo recadrée, page insérée à sa place (au milieu, avant la première, après la dernière), photo illisible refusée, rotation, texte corrigé gardé, relecture d'une seule page, page gardée en image dans l'EPUB, et deux tests d'écran (prise d'une page manquante, relecture sur PC et iPhone).
+
 ## 0.2.4 — 15/11/2026 — icône propre
 
 - Icône de Scriptorium à la place de celle du socle : une lettrine « S » sépia en EB Garamond (tracée en chemin, sans dépendre d'une police installée), à côté de lignes de texte, sur le fond sombre commun. `icone.svg`, `icone-180.png` et `icone-512.png` ; c'est elle que l'Anneau affiche sur la tuile.

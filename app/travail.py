@@ -92,13 +92,13 @@ class Travail:
                 img = pdf[i].render(scale=self.cfg.dpi / 72).to_pil().convert("RGB")
                 img.save(image, "JPEG", quality=88)
                 numero = inventaire.lire_numero(img)
-                self.base.ecrire("INSERT OR REPLACE INTO pages (livre_id, rang, numero_lu, numero) VALUES (?, ?, ?, ?)",
-                                 livre_id, rang, numero, numero)
+                self.base.ecrire("INSERT OR REPLACE INTO pages (livre_id, rang, ordre, numero_lu, numero) VALUES (?, ?, ?, ?, ?)",
+                                 livre_id, rang, rang, numero, numero)
                 self.base.ecrire("UPDATE livres SET avancement = ? WHERE id = ?", int(100 * rang / total), livre_id)
         finally:
             pdf.close()
         # Lectures aberrantes écartées une fois toutes les pages vues
-        pages = self.base.lire("SELECT rang, numero_lu FROM pages WHERE livre_id = ? ORDER BY rang", livre_id)
+        pages = self.base.lire("SELECT rang, numero_lu FROM pages WHERE livre_id = ? ORDER BY ordre", livre_id)
         corriges = inventaire.corriger([p["numero_lu"] for p in pages])
         self.base.plusieurs("UPDATE pages SET numero = ? WHERE livre_id = ? AND rang = ?",
                             [(n, livre_id, p["rang"]) for p, n in zip(pages, corriges)])
@@ -114,7 +114,7 @@ class Travail:
         dossier = self.base.dossier(livre_id)
         lu = dossier / "lu"
         (lu / "images").mkdir(parents=True, exist_ok=True)
-        pages = self.base.lire("SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 ORDER BY rang", livre_id)
+        pages = self.base.lire("SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 ORDER BY ordre", livre_id)
         a_lire = [p for p in pages if p["lecture"] in ("attente", "erreur")]
         self.en_cours = f"lecture du livre {livre_id}"
         lues, facturees = 0, 0
@@ -122,6 +122,9 @@ class Travail:
             if self._arret.is_set():
                 return
             rang = p["rang"]
+            if p["texte_main"]:   # texte corrigé à la relecture : Mistral ne l'écrase pas
+                self.base.ecrire("UPDATE pages SET lecture = 'faite' WHERE id = ?", p["id"])
+                continue
             try:
                 resultat = mistral.lire_page((dossier / "pages" / f"{rang:04d}.jpg").read_bytes(),
                                              self.cfg.mistral_cle, self.cfg.mistral_url, self.cfg.mistral_modele)
@@ -160,7 +163,7 @@ class Travail:
         """Numéro de chaque page : celui corrigé à la main, sinon celui de Mistral, sinon celui de Tesseract ;
         les lectures qui ne suivent pas leurs voisines sont écartées (pente des numéros)."""
         pages = self.base.lire("SELECT id, numero_lu, numero_mistral, numero, numero_manuel FROM pages "
-                               "WHERE livre_id = ? ORDER BY rang", livre_id)
+                               "WHERE livre_id = ? ORDER BY ordre", livre_id)
         bruts = [p["numero_mistral"] if p["numero_mistral"] is not None else p["numero_lu"] for p in pages]
         corriges = inventaire.corriger(bruts)
         self.base.plusieurs("UPDATE pages SET numero = ? WHERE id = ? AND numero_manuel = 0",

@@ -7,3 +7,4 @@ pypdfium2==5.13.0
 markdown==3.11
 ebooklib==0.21
 img2pdf==0.6.3
+pillow-heif==1.8.1
