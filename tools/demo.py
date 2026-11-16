@@ -94,17 +94,33 @@ def _notice_demo(isbn, client=None):
             "annee": "2012", "isbn": notice.isbn13(isbn), "source": "BnF"}
 
 
+def _anneau_demo(adresse, jeton):
+    """Faux Anneau : deux dates ; celle du 14 novembre a la recherche en ligne coupée et un autre prix."""
+    if "?le=" not in adresse:
+        return {"dates": ["2026-11-15", "2026-11-14"]}
+    le = adresse.rsplit("?le=", 1)[1]
+    reglages = {"recherche_web": True, "prix_page": 0.002, "dpi": 120}
+    if le == "2026-11-14":
+        reglages = {"recherche_web": False, "prix_page": 0.003, "dpi": 120}
+    return {"le": le, "version": "0.6.0", "reglages": reglages}
+
+
 def lancer(port: int = 8191, data: Path | None = None):
     data = data or Path(tempfile.mkdtemp(prefix="scriptorium-demo-"))
     (data / "bookdrop").mkdir(parents=True, exist_ok=True)
     main.ETAT.clear()
     main.ETAT["cfg"] = Config(password=MDP, data=data / "data", static=RACINE / "app" / "static", attente_connexion=False,
-                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120,
+                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop",
                               jeton_calcul="demo-jeton-du-pc")
     notice.chercher = _notice_demo
+    # 0.6 : la définition des pages est un réglage de l'écran Réglages (fichier reglages.json des données)
+    (data / "data").mkdir(parents=True, exist_ok=True)
+    (data / "data" / "reglages.json").write_text('{"dpi": 120}', encoding="utf-8")
+    # Pas d'Anneau en démonstration : deux sauvegardes inventées pour l'écran « Restaurer »
+    main.ETAT["lire_anneau"] = _anneau_demo
     preparer(data)
     main.ETAT["cfg"] = Config(password=MDP, data=data / "data", static=RACINE / "app" / "static", attente_connexion=False,
-                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop", dpi=120,
+                              travail_auto=False, mistral_cle="demo", bookdrop=data / "bookdrop",
                               jeton_calcul="demo-jeton-du-pc")
     uvicorn.run(main.app, host="127.0.0.1", port=port, log_level="warning")
 

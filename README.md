@@ -2,7 +2,7 @@
 
 D'un livre scanné à un vrai livre en texte : PDF et EPUB recomposés, qui gardent la mise en forme et les illustrations.
 
-État : **0.2.0** — import d'un PDF, inventaire des pages manquantes, lecture par Mistral, EPUB et dépôt dans Grimmory. La conception est dans [`docs/dossier.md`](docs/dossier.md), le point du chantier dans [`REPRISE.md`](REPRISE.md).
+État : **0.6.0** — import d'un PDF, inventaire des pages manquantes, lecture par Mistral et contre-lecture par le PC, fiche par l'ISBN, EPUB et PDF A5, dépôt dans Grimmory, réglages sauvegardés par l'Anneau. La conception est dans [`docs/dossier.md`](docs/dossier.md), le point du chantier dans [`REPRISE.md`](REPRISE.md).
 
 ## Principe
 
@@ -13,7 +13,7 @@ D'un livre scanné à un vrai livre en texte : PDF et EPUB recomposés, qui gard
 
 ## Installation
 
-Voir `docker-compose.yml` et `.env.example`. Aucune vraie valeur ne figure dans le dépôt : les mots de passe, chemins et clés se saisissent dans les variables de la stack.
+Voir `docker-compose.yml` et `.env.example`. Aucune vraie valeur ne figure dans le dépôt : le mot de passe commun (`MAISON_PASSWORD`), le jeton commun (`MAISON_JETON`), les chemins et les clés se saisissent dans les variables de la stack. Les réglages d'usage (recherche en ligne de la fiche, prix estimé par page, définition des pages) se changent dans l'écran Réglages ; l'Anneau les sauvegarde chaque nuit et « Restaurer les réglages » les reprend.
 
 ## Développement
 

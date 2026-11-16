@@ -9,17 +9,18 @@ services:
       - "${PORT_SCRIPTORIUM:-8091}:8091"                  # réseau local et Tailscale uniquement
     environment:
       - TZ=Europe/Paris
-      # 0.5 : variables communes de la maison (module app/maison.py) ; les anciennes restent lues en repli
-      - MAISON_PASSWORD=${MAISON_PASSWORD}                # mot de passe commun des applis (repli : SCRIPTORIUM_PASSWORD)
-      # - SCRIPTORIUM_PASSWORD=${SCRIPTORIUM_PASSWORD}    # ancien nom, encore lu tant que MAISON_PASSWORD manque
-      # - MAISON_JETON=${MAISON_JETON:-}                  # jeton commun : inutile ici, Scriptorium n'échange avec aucune appli maison
+      # Variables communes de la maison (module app/maison.py)
+      - MAISON_PASSWORD=${MAISON_PASSWORD}                # mot de passe commun des applis (12 caractères au moins)
+      - MAISON_JETON=${MAISON_JETON:-}                    # jeton commun : ouvre /externe/sauvegarde à l'Anneau et sert à « Restaurer » ; vide : porte fermée
       - MAISON_LECTURE_SEULE=${MAISON_LECTURE_SEULE:-}    # « oui » : aucune appli n'écrit ; SCRIPTORIUM_LECTURE_SEULE l'emporte si posée
       - SCRIPTORIUM_MISTRAL_CLE=${SCRIPTORIUM_MISTRAL_CLE:-}       # clé d'API Mistral ; vide : lecture non proposée
       - SCRIPTORIUM_JETON_CALCUL=${SCRIPTORIUM_JETON_CALCUL:-}     # jeton du PC de calcul (contre-lecture Marker) ; vide : porte fermée
-      - SCRIPTORIUM_RECHERCHE_WEB=${SCRIPTORIUM_RECHERCHE_WEB:-oui}  # « non » : pas de fiche cherchée à la BnF ni sur Open Library
       - SCRIPTORIUM_LECTURE_SEULE=${SCRIPTORIUM_LECTURE_SEULE:-}   # « oui » ou « non » : force Scriptorium seul (rien vers Mistral ni Grimmory)
+      # Réglages d'usage (recherche en ligne de la fiche, prix estimé par page, définition des pages) : ils se règlent
+      # dans l'écran Réglages de l'appli. Au premier démarrage de la 0.6, ils sont repris une fois des anciennes
+      # variables (SCRIPTORIUM_RECHERCHE_WEB, SCRIPTORIUM_PRIX_PAGE, SCRIPTORIUM_DPI), puis celles-ci ne sont plus lues.
     volumes:
-      - ${SCRIPTORIUM_DATA_DIR}:/data                     # livres importés, pages, texte lu, livres fabriqués
+      - ${SCRIPTORIUM_DATA_DIR}:/data                     # livres importés, pages, texte lu, livres fabriqués, reglages.json
       - ${SCRIPTORIUM_BOOKDROP_DIR}:/bookdrop             # dossier d'import de Grimmory (écriture)
     labels:
       # Scriptorium écrit dans le dossier d'import de Grimmory : pas de mise à jour automatique

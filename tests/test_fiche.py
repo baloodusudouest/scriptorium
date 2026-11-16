@@ -120,10 +120,10 @@ def test_fiche_refuse_un_isbn_faux_et_une_annee_bizarre(client, monkeypatch):  #
 
 
 def test_recherche_coupee(client, monkeypatch):  # noqa: F811
-    import dataclasses
     livre_id = livre_lu(client, monkeypatch, n=1)
-    main.ETAT["cfg"] = dataclasses.replace(main.ETAT["cfg"], recherche_web=False)
-    assert client.post(f"/api/livres/{livre_id}/notice", json={"isbn": ISBN}).status_code == 409
+    assert client.put("/api/reglages", json={"recherche_web": False}).status_code == 200    # 0.6 : écran Réglages
+    r = client.post(f"/api/livres/{livre_id}/notice", json={"isbn": ISBN})
+    assert r.status_code == 409 and "Réglages" in r.json()["detail"]
 
 
 def test_epub_avec_fiche_et_couverture_choisie(client, monkeypatch):  # noqa: F811

@@ -15,17 +15,23 @@ from PIL import Image
 
 from . import contre, inventaire, mistral
 from .base import Base
+from .config import REGLAGES
 
 log = logging.getLogger("scriptorium.travail")
 
 
 class Travail:
-    def __init__(self, base: Base, cfg):
+    def __init__(self, base: Base, cfg, reglages=None):
         self.base = base
         self.cfg = cfg
+        self.reglages = reglages    # 0.6 : réglages d'usage (maison.Reglages) ; la définition des pages y est lue
         self._arret = threading.Event()
         self._fil: threading.Thread | None = None
         self.en_cours = ""      # ce qui tourne, pour l'écran Connexion
+
+    def _dpi(self) -> int:
+        """Définition des pages découpées : réglage « dpi » de l'écran Réglages (200 par défaut)."""
+        return int(self.reglages.get("dpi")) if self.reglages is not None else REGLAGES["dpi"]
 
     # ------------------------------------------------------------ fil
     def demarrer(self) -> None:
@@ -110,7 +116,7 @@ class Travail:
                                          numero, numero, livre_id, rang)
                         self.base.ecrire("UPDATE livres SET avancement = ? WHERE id = ?", int(100 * rang / total), livre_id)
                     continue
-                img = pdf[i].render(scale=self.cfg.dpi / 72).to_pil().convert("RGB")
+                img = pdf[i].render(scale=self._dpi() / 72).to_pil().convert("RGB")
                 img.save(image, "JPEG", quality=88)
                 numero = inventaire.lire_numero(img)
                 self.base.ecrire("INSERT OR REPLACE INTO pages (livre_id, rang, ordre, numero_lu, numero) VALUES (?, ?, ?, ?, ?)",

@@ -22,6 +22,7 @@ async function appel(methode, chemin, corps) {
 export const api = {
   get: (chemin) => appel('GET', chemin),
   post: (chemin, corps) => appel('POST', chemin, corps ?? {}),
+  put: (chemin, corps) => appel('PUT', chemin, corps ?? {}),
 }
 
 // Envoi d'un gros PDF par morceaux de 8 Mo. Le serveur dit combien il a reçu : après une coupure, on

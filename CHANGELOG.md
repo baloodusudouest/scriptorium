@@ -1,5 +1,16 @@
 # Journal des versions — Scriptorium
 
+## 0.6.0 — 16 novembre 2026 — réglages dans l'appli, sauvegarde et restauration ; anciens noms retirés
+
+- **Réglages d'usage dans l'appli** : la recherche en ligne de la fiche (BnF, Open Library), le prix estimé par page lue et la définition des pages découpées quittent la stack. Ils se changent dans Réglages, tuile « Usage » (`GET` et `PUT /api/reglages`, session ; une valeur du mauvais type ou hors bornes est refusée avec un message clair). Ils sont gardés dans `reglages.json` du dossier de données (`maison.Reglages`).
+- **Reprise au premier démarrage** : une seule fois, chaque réglage reprend son ancienne variable si elle est posée (`SCRIPTORIUM_RECHERCHE_WEB`, `SCRIPTORIUM_PRIX_PAGE`, `SCRIPTORIUM_DPI`), avec une ligne au journal. Ensuite ces variables ne sont plus lues : l'écran Réglages fait foi.
+- **Sauvegarde par l'Anneau** : nouvelle porte `GET /externe/sauvegarde`, ouverte au seul jeton commun (`MAISON_JETON` ; vide : porte fermée). Elle rend les réglages d'usage et la version, jamais un secret, une variable ou un chemin.
+- **Restaurer les réglages** : nouvelle tuile dans Réglages. On choisit la date d'une sauvegarde de l'Anneau, on voit les différences (actuel → sauvegardé), on confirme. Seuls les réglages changent, même en lecture seule ; ligne au journal. Anneau injoignable ou rien à restaurer : un message clair.
+- **Anciens noms retirés** : `SCRIPTORIUM_PASSWORD` n'est plus lu ; sans `MAISON_PASSWORD` (12 caractères au moins), Scriptorium ne démarre pas. `MAISON_JETON` entre dans le conteneur (pour la sauvegarde). Restent propres à l'appli : `SCRIPTORIUM_LECTURE_SEULE`, `SCRIPTORIUM_MISTRAL_CLE`, `SCRIPTORIUM_JETON_CALCUL` (le PC de calcul garde son jeton).
+- Module commun `app/maison.py` au contrat 2 (copie du socle, non retouchée).
+- `docker-compose.yml`, `.env.example` : plus d'ancien nom ni de variable de réglage.
+- Tests : 111 (mot de passe commun seul, reprise puis variable ignorée, changement et refus des réglages, porte de sauvegarde, restauration avec un faux Anneau, Anneau injoignable, écran Réglages et Restaurer sur PC et iPhone).
+
 ## 0.5.0 — 16/11/2026 — variables communes de la maison
 
 - **Module commun** `app/maison.py` (contrat 1, copié tel quel depuis le socle, empreinte vérifiée par les tests).

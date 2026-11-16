@@ -1,7 +1,8 @@
-"""0.5 : variables communes de la maison (module app/maison.py, contrat 1).
+"""Variables communes de la maison (module app/maison.py, contrat 2).
 
-Scriptorium n'échange avec aucune autre appli maison : ni jeton commun reçu ou envoyé, ni adresse d'une autre
-appli. Restent le mot de passe commun et la lecture seule ; la porte du PC de calcul garde son propre jeton.
+0.6 : l'ancien nom du mot de passe (SCRIPTORIUM_PASSWORD) n'est plus lu. Scriptorium ne reçoit aucune porte d'une
+autre appli maison ; seule /externe/sauvegarde s'ouvre au jeton commun (voir tests/test_reglages.py). Restent la
+lecture seule (commune, forçable par SCRIPTORIUM_LECTURE_SEULE) ; la porte du PC de calcul garde son propre jeton.
 """
 import dataclasses
 
@@ -24,22 +25,23 @@ def environnement_vide(monkeypatch):
 
 
 def test_copie_du_module_non_retouchee():
-    assert maison.CONTRAT == 1
+    assert maison.CONTRAT == 2 and maison.CONTRAT_SAUVEGARDE == 1
     assert maison.empreinte_calculee() == maison.empreinte_ecrite()
 
 
-def test_mot_de_passe_commun_puis_repli(monkeypatch):
+def test_mot_de_passe_commun_seul(monkeypatch):
     monkeypatch.setenv("SCRIPTORIUM_PASSWORD", "ancien-mot-de-passe-long")
-    assert charger().password == "ancien-mot-de-passe-long"          # la stack actuelle continue de marcher
+    with pytest.raises(SystemExit, match="MAISON_PASSWORD est absent ou trop court"):
+        charger()                                                    # 0.6 : l'ancien nom seul ne suffit plus
     monkeypatch.setenv("MAISON_PASSWORD", "mot-de-passe-commun-long")
-    assert charger().password == "mot-de-passe-commun-long"          # le commun l'emporte
+    assert charger().password == "mot-de-passe-commun-long"
 
 
 def test_mot_de_passe_absent_ou_court_refuse(monkeypatch):
     with pytest.raises(SystemExit, match="MAISON_PASSWORD"):
         charger()
     monkeypatch.setenv("MAISON_PASSWORD", "court")
-    with pytest.raises(SystemExit, match="SCRIPTORIUM_PASSWORD"):
+    with pytest.raises(SystemExit, match="MAISON_PASSWORD est absent ou trop court"):
         charger()
 
 

@@ -1,4 +1,9 @@
-"""Réglages lus dans l'environnement du conteneur. Aucune valeur personnelle dans le code."""
+"""Réglages lus dans l'environnement du conteneur. Aucune valeur personnelle dans le code.
+
+0.6 : les réglages d'usage (recherche en ligne, estimation du prix, définition des pages) ne sont plus lus ici :
+ils vivent dans <données>/reglages.json et se changent dans l'écran Réglages (voir REGLAGES ci-dessous et
+app/maison.py, classe Reglages). Leur ancienne variable de la stack n'est lue qu'une fois, au premier démarrage.
+"""
 from __future__ import annotations
 
 import os
@@ -9,6 +14,23 @@ from . import maison
 
 APPLI = "scriptorium"
 
+# Réglages d'usage (contrat de sauvegarde 1) : clé → valeur par défaut (son type fixe le type du réglage)
+REGLAGES = {
+    "recherche_web": True,     # fiche par l'ISBN : interroger la BnF et Open Library (lecture seule)
+    "prix_page": 0.002,        # estimation affichée avant une lecture par Mistral, en dollars par page
+    "dpi": 200,                # définition des pages découpées dans un PDF importé
+}
+# Anciennes variables de la stack, reprises une seule fois (premier démarrage de la 0.6), puis plus jamais lues
+VARIABLES_REPRISES = {
+    "recherche_web": "SCRIPTORIUM_RECHERCHE_WEB",
+    "prix_page": "SCRIPTORIUM_PRIX_PAGE",
+    "dpi": "SCRIPTORIUM_DPI",
+}
+# Bornes vérifiées à l'enregistrement (écran Réglages, restauration)
+BORNES = {"prix_page": (0.0, 1.0), "dpi": (72, 600)}
+# Clés à ne jamais sortir dans une sauvegarde (aucune aujourd'hui : les trois réglages sont sans secret)
+EXCLUS: tuple[str, ...] = ()
+
 
 @dataclass(frozen=True)
 class Config:
@@ -17,37 +39,30 @@ class Config:
     static: Path
     attente_connexion: bool = True        # délai anti-essais ; coupé dans les tests
     lecture_seule: bool = False           # rien ne part chez Mistral, rien n'est déposé dans Grimmory
-    origine_lecture_seule: str = ""       # 0.5 : « maison » (MAISON_LECTURE_SEULE) ou « appli » (SCRIPTORIUM_LECTURE_SEULE)
+    origine_lecture_seule: str = ""       # « maison » (MAISON_LECTURE_SEULE) ou « appli » (SCRIPTORIUM_LECTURE_SEULE)
     mistral_cle: str = ""                 # clé d'API Mistral ; vide : la lecture n'est pas proposée
     mistral_url: str = "https://api.mistral.ai/v1/ocr"
     mistral_modele: str = "mistral-ocr-latest"
-    prix_page: float = 0.002              # estimation affichée (dollars par page), réglable
     bookdrop: Path | None = None          # dossier d'import de Grimmory, monté en écriture
-    dpi: int = 200                        # définition des pages découpées dans un PDF
-    recherche_web: bool = True            # fiche par l'ISBN : interroger la BnF et Open Library (lecture seule)
     jeton_calcul: str = ""                # jeton du PC de calcul (contre-lecture Marker) ; vide : porte /calcul fermée
     travail_auto: bool = True             # tâche de fond (coupée dans les tests, qui la lancent à la main)
 
 
 def charger() -> Config:
-    mot_de_passe = maison.mot_de_passe("SCRIPTORIUM_PASSWORD")   # 0.5 : MAISON_PASSWORD, repli sur l'ancien nom
+    mot_de_passe = maison.mot_de_passe()          # 0.6 : MAISON_PASSWORD seul (l'ancien nom n'est plus lu)
     if len(mot_de_passe) < 12:
-        raise SystemExit("MAISON_PASSWORD (ou SCRIPTORIUM_PASSWORD) est absent ou trop court (12 caractères au moins) : "
-                         "Scriptorium ne démarre pas.")
+        raise SystemExit("MAISON_PASSWORD est absent ou trop court (12 caractères au moins) : Scriptorium ne démarre pas.")
     bookdrop = os.environ.get("SCRIPTORIUM_BOOKDROP", "/bookdrop").strip()
     return Config(
         password=mot_de_passe,
         data=Path(os.environ.get("SCRIPTORIUM_DATA", "/data")),
         static=Path(__file__).parent / "static",
-        # 0.5 : MAISON_LECTURE_SEULE pour toute la maison ; SCRIPTORIUM_LECTURE_SEULE (« oui » ou « non ») l'emporte
+        # MAISON_LECTURE_SEULE pour toute la maison ; SCRIPTORIUM_LECTURE_SEULE (« oui » ou « non ») l'emporte
         lecture_seule=maison.lecture_seule("SCRIPTORIUM_LECTURE_SEULE"),
         origine_lecture_seule=maison.origine_lecture_seule("SCRIPTORIUM_LECTURE_SEULE"),
         mistral_cle=os.environ.get("SCRIPTORIUM_MISTRAL_CLE", "").strip(),
         mistral_url=os.environ.get("SCRIPTORIUM_MISTRAL_URL", "https://api.mistral.ai/v1/ocr").strip(),
         mistral_modele=os.environ.get("SCRIPTORIUM_MISTRAL_MODELE", "mistral-ocr-latest").strip(),
-        prix_page=float(os.environ.get("SCRIPTORIUM_PRIX_PAGE", "0.002") or 0.002),
         bookdrop=Path(bookdrop) if bookdrop else None,
-        dpi=int(os.environ.get("SCRIPTORIUM_DPI", "200") or 200),
-        recherche_web=os.environ.get("SCRIPTORIUM_RECHERCHE_WEB", "oui").strip().lower() not in ("non", "0", "false", "no"),
         jeton_calcul=os.environ.get("SCRIPTORIUM_JETON_CALCUL", "").strip(),
     )

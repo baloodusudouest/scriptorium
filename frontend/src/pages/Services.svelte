@@ -71,7 +71,7 @@
     <p class="mt-1 text-sm text-muted-foreground">
       Scriptorium lui envoie l'image de chaque page, sur ton clic « Faire lire » ; il renvoie le texte mis en forme et les illustrations.
       La clé reste dans la stack (SCRIPTORIUM_MISTRAL_CLE) et ne passe jamais par le navigateur.
-      Modèle : {s.mistral.modele}. Estimation affichée : {s.mistral.prix_page} $ par page.
+      Modèle : {s.mistral.modele}. Estimation affichée : {s.mistral.prix_page} $ par page (réglable dans Réglages).
     </p>
     <div class="mt-3 flex flex-wrap items-center gap-3">
       <Button variant="outline" onclick={verifierMistral}>Vérifier</Button>

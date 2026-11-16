@@ -3,8 +3,12 @@
 Livraison 0.1 : import d'un PDF (envoi par morceaux), découpe en pages et inventaire des pages manquantes,
 lecture par Mistral OCR, EPUB recomposé simple et PDF d'archive, dépôt dans le bookdrop de Grimmory.
 
-Routes publiques : /health, /api/session, /api/connexion. Tout le reste demande la session, sauf la porte
-du PC de calcul (/calcul/…), gardée par son propre jeton (SCRIPTORIUM_JETON_CALCUL ; vide : porte fermée).
+Routes publiques : /health, /api/session, /api/connexion. Tout le reste demande la session, sauf :
+    - la porte du PC de calcul (/calcul/…), gardée par son propre jeton (SCRIPTORIUM_JETON_CALCUL ; vide : porte fermée) ;
+    - 0.6 : la porte de sauvegarde (/externe/sauvegarde), ouverte au seul jeton commun de la maison (MAISON_JETON ;
+      vide : porte fermée). L'Anneau y collecte chaque nuit les réglages d'usage, jamais un secret.
+Réglages d'usage (0.6) : <données>/reglages.json (maison.Reglages), changés dans l'écran Réglages
+(/api/reglages) et restaurables depuis une sauvegarde de l'Anneau (/api/restaurer).
 Écritures hors de chez Scriptorium (gardées par exiger_ecriture, journalisées) :
     - l'envoi des pages à Mistral (elles sortent de la maison et la lecture est payante) ;
     - le dépôt dans le bookdrop de Grimmory (jamais par-dessus un fichier existant).
@@ -14,16 +18,17 @@ from __future__ import annotations
 import asyncio
 import hmac
 import shutil
+import urllib.error
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, capture, contre, fabrication, inventaire, mistral, notice
+from . import __version__, capture, contre, fabrication, inventaire, maison, mistral, notice
 from .auth import COMMUN, DUREE, Sessions
 from .base import Base, maintenant
-from .config import APPLI, Config, charger
+from .config import APPLI, BORNES, EXCLUS, REGLAGES, VARIABLES_REPRISES, Config, charger
 from .travail import Travail, supprimer_dossier, vignette
 
 ETAT: dict = {}
@@ -62,8 +67,13 @@ async def cycle(app: FastAPI):
     cfg = ETAT.get("cfg") or charger()
     cfg.data.mkdir(parents=True, exist_ok=True)
     base = Base(cfg.data)
-    travail = Travail(base, cfg)
-    ETAT.update(cfg=cfg, base=base, travail=travail, sessions=Sessions(APPLI, cfg.password, _lire_generation(cfg)))
+    # 0.6 : réglages d'usage ; au premier démarrage, ils reprennent les anciennes variables de la stack (une fois)
+    reglages = maison.Reglages(cfg.data / "reglages.json", REGLAGES, VARIABLES_REPRISES)
+    for k in reglages.repris:
+        base.noter("reglage_repris", None, f"{k} = {_texte_reglage(reglages.get(k))} (repris de {VARIABLES_REPRISES[k]})")
+    travail = Travail(base, cfg, reglages)
+    ETAT.update(cfg=cfg, base=base, travail=travail, reglages=reglages,
+                sessions=Sessions(APPLI, cfg.password, _lire_generation(cfg)))
     # Un envoi ou une lecture interrompus par un redémarrage reprennent tout seuls.
     if cfg.travail_auto:
         travail.demarrer()
@@ -173,13 +183,12 @@ def _bilan(livre: dict, pages: list[dict]) -> dict:
     compte = {k: sum(1 for p in gardees if p["lecture"] == k) for k in ("attente", "faite", "douteuse", "erreur")}
     a_lire = compte["attente"] + compte["erreur"]
     contre_compte = {k: sum(1 for p in gardees if p["contre"] == k and not p["texte_main"]) for k in ("attente", "calcul", "faite", "erreur")}
-    cfg = ETAT["cfg"]
     return {
         "pages": len(pages), "gardees": len(gardees), "ecartees": len(pages) - len(gardees),
         "inventaire": inv, "lecture": compte,
         "contre": {**contre_compte, "a_relire": [p["rang"] for p in gardees if contre.a_relire(p)],
                    "pc": bool(ETAT["cfg"].jeton_calcul)},
-        "estimation": {"pages": a_lire, "dollars": round(a_lire * cfg.prix_page, 2)},
+        "estimation": {"pages": a_lire, "dollars": round(a_lire * ETAT["reglages"].get("prix_page"), 2)},
         "facturees": sum(p["pages_facturees"] for p in pages),
         "pdf": bool(livre["pdf"]) and (ETAT["base"].dossier(livre["id"]) / "sortie" / livre["pdf"]).exists(),
         "fabrique": bool(livre["epub"]) and (ETAT["base"].dossier(livre["id"]) / "sortie" / livre["epub"]).exists(),
@@ -249,8 +258,8 @@ def chercher_notice(livre_id: int, corps: dict = Body(default={})):
     """Cherche la fiche par l'ISBN (donné, ou repéré dans le texte lu des premières et dernières pages).
     Renvoie une proposition, rien n'est enregistré."""
     _livre(livre_id)
-    if not ETAT["cfg"].recherche_web:
-        raise HTTPException(409, "Recherche en ligne coupée (SCRIPTORIUM_RECHERCHE_WEB=non) : remplis la fiche à la main.")
+    if not ETAT["reglages"].get("recherche_web"):
+        raise HTTPException(409, "Recherche en ligne coupée (Réglages) : remplis la fiche à la main.")
     trouves: list[str] = []
     isbn = str(corps.get("isbn") or "").strip()
     if isbn:
@@ -692,7 +701,7 @@ def services():
     return {
         "lecture_seule": cfg.lecture_seule,
         "origine_lecture_seule": _origine_lecture_seule(cfg),
-        "mistral": {"cle": bool(cfg.mistral_cle), "modele": cfg.mistral_modele, "prix_page": cfg.prix_page,
+        "mistral": {"cle": bool(cfg.mistral_cle), "modele": cfg.mistral_modele, "prix_page": ETAT["reglages"].get("prix_page"),
                     "facturees": ETAT["base"].un("SELECT COALESCE(SUM(pages_facturees), 0) AS n FROM pages")["n"]},
         "pc": {"configure": bool(cfg.jeton_calcul), "vu_le": ETAT["base"].memo("pc_vu_le"),
                "moteur": ETAT["base"].memo("pc_moteur"), "en_attente": contre.pages_en_attente(ETAT["base"])},
@@ -711,6 +720,135 @@ def verifier_mistral():
 @app.get("/api/journal")
 def journal():
     return ETAT["base"].lire("SELECT j.*, l.titre FROM journal j LEFT JOIN livres l ON l.id = j.livre_id ORDER BY j.id DESC LIMIT 200")
+
+
+# ================================================================ réglages d'usage, sauvegarde et restauration (0.6)
+
+def _texte_reglage(v) -> str:
+    if isinstance(v, bool):
+        return "oui" if v else "non"
+    return str(v)
+
+
+def _valider(valeurs) -> dict:
+    """Vérifie des réglages reçus (écran ou sauvegarde) : clé connue, bon type, dans les bornes. 400 sinon."""
+    if not isinstance(valeurs, dict):
+        raise HTTPException(400, "Réglages attendus sous la forme {clé: valeur}.")
+    propres = {}
+    for k, v in valeurs.items():
+        if k not in REGLAGES:
+            raise HTTPException(400, f"Réglage inconnu : « {k} ».")
+        defaut = REGLAGES[k]
+        if isinstance(defaut, bool):
+            if not isinstance(v, bool):
+                raise HTTPException(400, f"« {k} » : oui ou non attendu (true ou false).")
+        elif isinstance(defaut, int):
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or int(v) != v:
+                raise HTTPException(400, f"« {k} » : nombre entier attendu.")
+            v = int(v)
+        elif isinstance(defaut, float):
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                raise HTTPException(400, f"« {k} » : nombre attendu.")
+            v = float(v)
+        if k in BORNES:
+            bas, haut = BORNES[k]
+            if not bas <= v <= haut:
+                raise HTTPException(400, f"« {k} » : entre {bas} et {haut}.")
+        propres[k] = v
+    return propres
+
+
+def _vue_reglages() -> dict:
+    return {"reglages": ETAT["reglages"].tout(), "defauts": REGLAGES,
+            "bornes": {k: list(b) for k, b in BORNES.items()}}
+
+
+@app.get("/api/reglages")
+def lire_reglages():
+    return _vue_reglages()
+
+
+@app.put("/api/reglages")
+def changer_reglages(corps: dict = Body(...)):
+    """Change les réglages d'usage (permis en lecture seule : ils ne touchent que Scriptorium)."""
+    propres = _valider(corps.get("reglages", corps))
+    avant = ETAT["reglages"].tout()
+    try:
+        ETAT["reglages"].changer(propres)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(400, f"Réglage refusé : {e}.") from e
+    changes = [f"{k} : {_texte_reglage(avant[k])} → {_texte_reglage(v)}" for k, v in propres.items() if avant.get(k) != v]
+    if changes:
+        ETAT["base"].noter("reglages", None, " ; ".join(changes))
+    return _vue_reglages()
+
+
+@app.get("/externe/sauvegarde")
+def externe_sauvegarde(request: Request):
+    """Réglages d'usage pour l'Anneau (collecte de nuit). Jeton commun seulement ; MAISON_JETON vide : porte fermée."""
+    acceptes = maison.jetons()
+    if not acceptes:
+        raise HTTPException(404, "Not Found")
+    if not maison.jeton_valide(maison.jeton_propose(request.headers), acceptes):
+        raise HTTPException(401, "Jeton refusé.")
+    return maison.sauvegarde(APPLI, __version__, ETAT["reglages"].tout(), exclus=EXCLUS)
+
+
+def _lire_anneau(le: str = "") -> dict:
+    """Demande une sauvegarde à l'Anneau ; ses pannes deviennent des messages clairs (503 ou 404)."""
+    if ETAT.get("lire_anneau") is None and not maison.jeton_a_envoyer():   # (faux Anneau : démonstration, tests)
+        raise HTTPException(503, "Restauration impossible : MAISON_JETON n'est pas dans la stack de Scriptorium.")
+    try:
+        return maison.lire_sauvegarde(APPLI, le, lire=ETAT.get("lire_anneau"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise HTTPException(404, f"L'Anneau n'a aucune sauvegarde de Scriptorium{' le ' + le if le else ''}.") from e
+        raise HTTPException(503, f"L'Anneau a refusé la demande (réponse {e.code}).") from e
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001 — Anneau éteint, réseau, réponse illisible
+        raise HTTPException(503, f"Anneau injoignable ({e.__class__.__name__}) : réessaie plus tard.") from e
+
+
+def _sauves(le: str) -> dict:
+    s = _lire_anneau(le)
+    if not isinstance(s, dict) or not isinstance(s.get("reglages"), dict):
+        raise HTTPException(404, f"L'Anneau n'a aucune sauvegarde de Scriptorium le {le}.")
+    return s
+
+
+@app.get("/api/restaurer")
+def restaurer_voir(le: str = ""):
+    """Sans « le » : dates des sauvegardes chez l'Anneau. Avec « le » : différences avec les réglages actuels."""
+    if not le:
+        dates = (_lire_anneau() or {}).get("dates") or []
+        if not dates:
+            raise HTTPException(404, "L'Anneau n'a encore aucune sauvegarde de Scriptorium (il les collecte chaque nuit).")
+        return {"dates": dates}
+    s = _sauves(le)
+    return {"le": s.get("le", le), "version": s.get("version", ""),
+            "differences": maison.differences(ETAT["reglages"].tout(), s["reglages"], EXCLUS)}
+
+
+@app.post("/api/restaurer")
+def restaurer(corps: dict = Body(...)):
+    """Applique les réglages d'une sauvegarde de l'Anneau qui diffèrent des actuels (réglages seulement)."""
+    le = str(corps.get("le") or "").strip()
+    if not le:
+        raise HTTPException(400, "Choisis la date de la sauvegarde à restaurer.")
+    s = _sauves(le)
+    diffs = maison.differences(ETAT["reglages"].tout(), s["reglages"], EXCLUS)
+    propres = {}
+    for d in diffs:
+        try:
+            propres.update(_valider({d["cle"]: d["sauve"]}))
+        except HTTPException:
+            continue                    # valeur d'une ancienne version devenue invalide : on garde l'actuelle
+    if propres:
+        ETAT["reglages"].changer(propres)
+        ETAT["base"].noter("restauration", None, f"sauvegarde du {le} : " + " ; ".join(
+            f"{d['cle']} : {_texte_reglage(d['actuel'])} → {_texte_reglage(d['sauve'])}" for d in diffs if d["cle"] in propres))
+    return {**_vue_reglages(), "appliques": sorted(propres)}
 
 
 # ================================================================ interface

@@ -54,9 +54,10 @@ def client(tmp_path):
     (tmp_path / "bookdrop").mkdir()
     main.ETAT.clear()
     main.ETAT["cfg"] = Config(password=MDP, data=tmp_path / "data", static=tmp_path / "static", attente_connexion=False,
-                              travail_auto=False, mistral_cle="cle-de-test", bookdrop=tmp_path / "bookdrop", dpi=100)
+                              travail_auto=False, mistral_cle="cle-de-test", bookdrop=tmp_path / "bookdrop")
     with TestClient(main.app) as c:
         assert c.post("/api/connexion", json={"mot_de_passe": MDP}).status_code == 200
+        assert c.put("/api/reglages", json={"dpi": 100}).status_code == 200      # 0.6 : réglage de l'écran Réglages
         yield c
     main.ETAT.clear()
 

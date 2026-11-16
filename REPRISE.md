@@ -4,7 +4,13 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## État (16/11/2026)
 
-- **0.5.0** (16/11/2026) : variables communes de la maison (`app/maison.py`, `app/config.py`, Réglages) : `MAISON_PASSWORD` (repli `SCRIPTORIUM_PASSWORD`), `MAISON_LECTURE_SEULE` (forçable par `SCRIPTORIUM_LECTURE_SEULE`). Pas de jeton commun ni d'adresse d'une autre appli (aucun échange avec une appli maison) ; le jeton du PC de calcul reste propre. **Jamais essayé sur la vraie installation : les nouvelles variables ne sont pas encore dans la stack.**
+- **0.6.0** (16/11/2026) : réglages dans l'appli, sauvegarde et restauration ; anciens noms retirés.
+  - Réglages d'usage (`app/config.py` : `REGLAGES`, `VARIABLES_REPRISES`, `BORNES`, `EXCLUS`) : `recherche_web` (oui/non, oui), `prix_page` (nombre, 0.002), `dpi` (entier, 200). Gardés dans `<données>/reglages.json` par `maison.Reglages` ; repris une fois de `SCRIPTORIUM_RECHERCHE_WEB`, `SCRIPTORIUM_PRIX_PAGE`, `SCRIPTORIUM_DPI` au premier démarrage (ligne « Réglage repris de la stack » au journal), puis ces variables ne sont plus lues. Écran : `frontend/src/pages/Reglages.svelte`, tuiles « Usage » et « Restaurer les réglages ».
+  - Routes (`app/main.py`) : `GET`/`PUT /api/reglages`, `GET`/`POST /api/restaurer` (session) ; `GET /externe/sauvegarde` (jeton commun seulement, 404 si `MAISON_JETON` vide). La découpe lit `dpi` par `Travail._dpi()`.
+  - Mot de passe : `MAISON_PASSWORD` seul (`SCRIPTORIUM_PASSWORD` n'est plus lu). `MAISON_JETON` entre dans le conteneur.
+  - **Déploiement en deux temps** : d'abord la nouvelle image avec la stack actuelle (les réglages sont repris des anciennes variables au premier démarrage), vérifier Réglages, puis la nouvelle stack sans les anciennes lignes (`SCRIPTORIUM_PASSWORD`, `SCRIPTORIUM_RECHERCHE_WEB`) et avec `MAISON_JETON`. Attention : `MAISON_PASSWORD` doit déjà être rempli dans la stack, sinon la 0.6 ne démarre pas.
+  - **Jamais essayé sur la vraie installation** (ni la reprise, ni la collecte par l'Anneau, ni la restauration).
+- **0.5.0** (16/11/2026) : variables communes de la maison (`app/maison.py`, `app/config.py`, Réglages) : `MAISON_PASSWORD` (repli `SCRIPTORIUM_PASSWORD`, retiré en 0.6), `MAISON_LECTURE_SEULE` (forçable par `SCRIPTORIUM_LECTURE_SEULE`). Le jeton du PC de calcul reste propre.
 - **0.4.1 à 0.4.3** (15/11/2026) : tuiles du bilan cliquables, numéro de page dans l'écran de la page, listes numérotées réparées, ISBN par photo du code-barres.
 - **0.4.0** (15/11/2026) : fiche par l'ISBN (BnF puis Open Library, proposée et non imposée), couverture choisie, métadonnées dans l'EPUB, PDF A5 soigné (WeasyPrint, tâche de fond). Fin des trois livraisons prévues au conseil.
 - **0.3.1** (15/11/2026) : contre-lecture par Marker sur le PC (`pc/`, image `scriptorium-calcul`), porte `/calcul` à jeton, mots à relire dans l'écran de relecture.
@@ -69,6 +75,8 @@ Voir la fin de `docs/dossier.md`. Pour mémoire :
 - `tools/demo.py` remplace la lecture de Mistral le temps de préparer ses livres, puis la remet en place. Sans cela, les tests du vrai client échouent quand ils passent après les tests d'écran.
 - Le conteneur prend les droits du propriétaire de `/data` : le bookdrop de Grimmory doit être inscriptible par ce même compte.
 - Sonde : Hugging Face et l'API Mistral sont injoignables depuis l'environnement de Claude. `docling` 2.150 a déprécié `force_full_page_ocr` (écrire `mode=OcrMode.FULL_PAGE`).
+- Réglages d'usage : ne jamais relire leur variable après le premier démarrage. Un nouveau réglage s'ajoute dans `REGLAGES` (le type de la valeur par défaut fixe son type), avec ses bornes éventuelles et son libellé dans `Reglages.svelte` ; s'il ressemble à un secret, `maison.est_secret` l'écarte des sauvegardes, sinon l'ajouter à `EXCLUS` s'il ne doit pas sortir.
+- `tools/demo.py` simule l'Anneau (`ETAT["lire_anneau"]`, deux sauvegardes) pour l'écran Restaurer ; les tests passent leur faux Anneau de la même façon.
 - Hérités du socle : `pages/Services.svelte` est l'écran « Connexion », et `pages/Connexion.svelte` la page du mot de passe.
 
 ## Non-objectifs

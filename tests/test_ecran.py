@@ -235,3 +235,32 @@ def test_isbn_par_la_photo_du_code_barres(navigateur, adresse, tmp_path):
     assert page.get_by_label("ISBN").input_value() == "9782070612758"
     sans_debordement(page)
     assert erreurs == []
+
+
+@pytest.mark.parametrize("taille", TAILLES)
+def test_reglages_et_restaurer(navigateur, adresse, taille):
+    """0.6 : la tuile Usage change un réglage ; la tuile Restaurer montre les différences d'une sauvegarde (faux Anneau)."""
+    page, erreurs = ouvrir(navigateur, adresse, taille)
+    page.goto(adresse + "/#/reglages")
+    form = page.get_by_role("form", name="Réglages d'usage")
+    form.wait_for()
+    sans_debordement(page)
+    champ = page.get_by_label("Définition des pages découpées")
+    assert champ.input_value() == "120"
+    champ.fill("130" if taille == "pc" else "120")
+    if taille == "pc":
+        page.get_by_role("button", name="Enregistrer les réglages").click()
+        page.get_by_text("Réglages enregistrés.").wait_for()
+    page.get_by_role("button", name="Voir les sauvegardes").click()
+    differences = page.get_by_role("list", name="Différences avec la sauvegarde")
+    # Serveur commun aux deux tailles : le passage PC restaure le 14 ; le passage iPhone regarde alors le 15
+    page.get_by_label("Sauvegarde du").select_option("2026-11-14" if taille == "pc" else "2026-11-15")
+    differences.wait_for()
+    assert "Recherche en ligne de la fiche" in differences.inner_text()
+    sans_debordement(page)
+    if taille == "pc":
+        page.get_by_role("button", name="Restaurer ces réglages").click()
+        page.get_by_text(re.compile("^Restauré :")).wait_for()
+        assert not page.get_by_label("Recherche en ligne de la fiche").is_checked()
+        page.get_by_text("Restauration des réglages").first.wait_for()      # ligne au journal
+    assert erreurs == []
