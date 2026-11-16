@@ -5,11 +5,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import maison
+
 APPLI = "scriptorium"
-
-
-def _oui(nom: str) -> bool:
-    return os.environ.get(nom, "").strip().lower() in ("oui", "1", "true", "yes")
 
 
 @dataclass(frozen=True)
@@ -19,6 +17,7 @@ class Config:
     static: Path
     attente_connexion: bool = True        # délai anti-essais ; coupé dans les tests
     lecture_seule: bool = False           # rien ne part chez Mistral, rien n'est déposé dans Grimmory
+    origine_lecture_seule: str = ""       # 0.5 : « maison » (MAISON_LECTURE_SEULE) ou « appli » (SCRIPTORIUM_LECTURE_SEULE)
     mistral_cle: str = ""                 # clé d'API Mistral ; vide : la lecture n'est pas proposée
     mistral_url: str = "https://api.mistral.ai/v1/ocr"
     mistral_modele: str = "mistral-ocr-latest"
@@ -31,15 +30,18 @@ class Config:
 
 
 def charger() -> Config:
-    mot_de_passe = os.environ.get("SCRIPTORIUM_PASSWORD", "")
+    mot_de_passe = maison.mot_de_passe("SCRIPTORIUM_PASSWORD")   # 0.5 : MAISON_PASSWORD, repli sur l'ancien nom
     if len(mot_de_passe) < 12:
-        raise SystemExit("SCRIPTORIUM_PASSWORD est absent ou trop court (12 caractères au moins) : Scriptorium ne démarre pas.")
+        raise SystemExit("MAISON_PASSWORD (ou SCRIPTORIUM_PASSWORD) est absent ou trop court (12 caractères au moins) : "
+                         "Scriptorium ne démarre pas.")
     bookdrop = os.environ.get("SCRIPTORIUM_BOOKDROP", "/bookdrop").strip()
     return Config(
         password=mot_de_passe,
         data=Path(os.environ.get("SCRIPTORIUM_DATA", "/data")),
         static=Path(__file__).parent / "static",
-        lecture_seule=_oui("SCRIPTORIUM_LECTURE_SEULE"),
+        # 0.5 : MAISON_LECTURE_SEULE pour toute la maison ; SCRIPTORIUM_LECTURE_SEULE (« oui » ou « non ») l'emporte
+        lecture_seule=maison.lecture_seule("SCRIPTORIUM_LECTURE_SEULE"),
+        origine_lecture_seule=maison.origine_lecture_seule("SCRIPTORIUM_LECTURE_SEULE"),
         mistral_cle=os.environ.get("SCRIPTORIUM_MISTRAL_CLE", "").strip(),
         mistral_url=os.environ.get("SCRIPTORIUM_MISTRAL_URL", "https://api.mistral.ai/v1/ocr").strip(),
         mistral_modele=os.environ.get("SCRIPTORIUM_MISTRAL_MODELE", "mistral-ocr-latest").strip(),

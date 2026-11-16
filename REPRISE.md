@@ -2,8 +2,9 @@
 
 Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaque fin de session, dans le même commit que le code.
 
-## État (15/11/2026)
+## État (16/11/2026)
 
+- **0.5.0** (16/11/2026) : variables communes de la maison (`app/maison.py`, `app/config.py`, Réglages) : `MAISON_PASSWORD` (repli `SCRIPTORIUM_PASSWORD`), `MAISON_LECTURE_SEULE` (forçable par `SCRIPTORIUM_LECTURE_SEULE`). Pas de jeton commun ni d'adresse d'une autre appli (aucun échange avec une appli maison) ; le jeton du PC de calcul reste propre. **Jamais essayé sur la vraie installation : les nouvelles variables ne sont pas encore dans la stack.**
 - **0.4.1 à 0.4.3** (15/11/2026) : tuiles du bilan cliquables, numéro de page dans l'écran de la page, listes numérotées réparées, ISBN par photo du code-barres.
 - **0.4.0** (15/11/2026) : fiche par l'ISBN (BnF puis Open Library, proposée et non imposée), couverture choisie, métadonnées dans l'EPUB, PDF A5 soigné (WeasyPrint, tâche de fond). Fin des trois livraisons prévues au conseil.
 - **0.3.1** (15/11/2026) : contre-lecture par Marker sur le PC (`pc/`, image `scriptorium-calcul`), porte `/calcul` à jeton, mots à relire dans l'écran de relecture.

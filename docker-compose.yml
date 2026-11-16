@@ -9,11 +9,15 @@ services:
       - "${PORT_SCRIPTORIUM:-8091}:8091"                  # réseau local et Tailscale uniquement
     environment:
       - TZ=Europe/Paris
-      - SCRIPTORIUM_PASSWORD=${APPS_PASSWORD}             # mot de passe commun à toutes les applis
+      # 0.5 : variables communes de la maison (module app/maison.py) ; les anciennes restent lues en repli
+      - MAISON_PASSWORD=${MAISON_PASSWORD}                # mot de passe commun des applis (repli : SCRIPTORIUM_PASSWORD)
+      # - SCRIPTORIUM_PASSWORD=${SCRIPTORIUM_PASSWORD}    # ancien nom, encore lu tant que MAISON_PASSWORD manque
+      # - MAISON_JETON=${MAISON_JETON:-}                  # jeton commun : inutile ici, Scriptorium n'échange avec aucune appli maison
+      - MAISON_LECTURE_SEULE=${MAISON_LECTURE_SEULE:-}    # « oui » : aucune appli n'écrit ; SCRIPTORIUM_LECTURE_SEULE l'emporte si posée
       - SCRIPTORIUM_MISTRAL_CLE=${SCRIPTORIUM_MISTRAL_CLE:-}       # clé d'API Mistral ; vide : lecture non proposée
       - SCRIPTORIUM_JETON_CALCUL=${SCRIPTORIUM_JETON_CALCUL:-}     # jeton du PC de calcul (contre-lecture Marker) ; vide : porte fermée
       - SCRIPTORIUM_RECHERCHE_WEB=${SCRIPTORIUM_RECHERCHE_WEB:-oui}  # « non » : pas de fiche cherchée à la BnF ni sur Open Library
-      - SCRIPTORIUM_LECTURE_SEULE=${SCRIPTORIUM_LECTURE_SEULE:-}   # « oui » : rien n'est envoyé à Mistral ni déposé dans Grimmory
+      - SCRIPTORIUM_LECTURE_SEULE=${SCRIPTORIUM_LECTURE_SEULE:-}   # « oui » ou « non » : force Scriptorium seul (rien vers Mistral ni Grimmory)
     volumes:
       - ${SCRIPTORIUM_DATA_DIR}:/data                     # livres importés, pages, texte lu, livres fabriqués
       - ${SCRIPTORIUM_BOOKDROP_DIR}:/bookdrop             # dossier d'import de Grimmory (écriture)

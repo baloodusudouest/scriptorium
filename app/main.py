@@ -89,7 +89,14 @@ async def garde(request: Request, appel):
 
 
 class LectureSeule(Exception):
-    """Écriture refusée : l'appli tourne en lecture seule (SCRIPTORIUM_LECTURE_SEULE)."""
+    """Écriture refusée : l'appli tourne en lecture seule (MAISON_LECTURE_SEULE, ou SCRIPTORIUM_LECTURE_SEULE qui l'emporte)."""
+
+
+def _origine_lecture_seule(cfg: Config) -> str:
+    """0.5 : « maison » (toute la maison), « appli » (Scriptorium seul) ou « » (écriture permise)."""
+    if not cfg.lecture_seule:
+        return ""
+    return cfg.origine_lecture_seule or "appli"
 
 
 def exiger_ecriture(quoi: str = "") -> None:
@@ -115,7 +122,7 @@ def sante():
 def session(request: Request):
     s = ETAT["sessions"]
     return {"connecte": s.connecte(request.cookies), "version": __version__,
-            "lecture_seule": ETAT["cfg"].lecture_seule}
+            "lecture_seule": ETAT["cfg"].lecture_seule, "origine_lecture_seule": _origine_lecture_seule(ETAT["cfg"])}
 
 
 @app.post("/api/connexion")
@@ -684,6 +691,7 @@ def services():
     disque = shutil.disk_usage(cfg.data)
     return {
         "lecture_seule": cfg.lecture_seule,
+        "origine_lecture_seule": _origine_lecture_seule(cfg),
         "mistral": {"cle": bool(cfg.mistral_cle), "modele": cfg.mistral_modele, "prix_page": cfg.prix_page,
                     "facturees": ETAT["base"].un("SELECT COALESCE(SUM(pages_facturees), 0) AS n FROM pages")["n"]},
         "pc": {"configure": bool(cfg.jeton_calcul), "vu_le": ETAT["base"].memo("pc_vu_le"),

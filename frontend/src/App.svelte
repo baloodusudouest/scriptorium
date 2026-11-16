@@ -24,7 +24,7 @@
   ]
 
   let connecte = $state(null) // null : on ne sait pas encore
-  let session = $state({ version: '', lecture_seule: false })
+  let session = $state({ version: '', lecture_seule: false, origine_lecture_seule: '' })
   let page = $state(lirePage())
   let livreId = $state(lireLivre())
   let pageRang = $state(lireRang())
@@ -96,7 +96,7 @@
     >
       {#if session.lecture_seule}
         <p class="mb-4 rounded-xl border border-primary/50 px-4 py-2 text-sm" role="status">
-          Mode lecture seule : l'appli lit tout mais n'écrit nulle part (SCRIPTORIUM_LECTURE_SEULE).
+          Mode lecture seule : l'appli lit tout mais n'écrit nulle part ({session.origine_lecture_seule === 'maison' ? 'toute la maison, MAISON_LECTURE_SEULE' : 'cette appli, SCRIPTORIUM_LECTURE_SEULE'}).
         </p>
       {/if}
       {#key page + (livreId ?? '') + '/' + (pageRang ?? '')}

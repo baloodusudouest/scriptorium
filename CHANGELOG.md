@@ -1,5 +1,14 @@
 # Journal des versions — Scriptorium
 
+## 0.5.0 — 16/11/2026 — variables communes de la maison
+
+- **Module commun** `app/maison.py` (contrat 1, copié tel quel depuis le socle, empreinte vérifiée par les tests).
+- **Mot de passe** : `MAISON_PASSWORD`, le mot de passe commun des applis. L'ancien `SCRIPTORIUM_PASSWORD` reste lu tant que `MAISON_PASSWORD` n'est pas dans la stack : rien ne change au redéploiement. Toujours 12 caractères au moins.
+- **Lecture seule** : `MAISON_LECTURE_SEULE=oui` met toute la maison en lecture seule ; `SCRIPTORIUM_LECTURE_SEULE` (« oui » ou « non »), si elle est posée, l'emporte pour Scriptorium seul. Réglages et le bandeau disent d'où elle vient (« toute la maison » ou « cette appli ») ; `/api/session` et `/api/services` donnent `origine_lecture_seule`.
+- **Pas de jeton commun** : Scriptorium n'échange avec aucune autre appli maison. La porte du PC de calcul garde son propre jeton (`SCRIPTORIUM_JETON_CALCUL`) : `MAISON_JETON` ne l'ouvre pas. Clé Mistral et recherche web inchangées.
+- `docker-compose.yml` et `.env.example` : `MAISON_PASSWORD` et `MAISON_LECTURE_SEULE` ; l'ancien nom du mot de passe en commentaire.
+- Tests : 84 (copie du module, mot de passe commun puis ancien, lecture seule de la maison et forçage par l'appli, origine annoncée, porte du PC fermée au jeton commun).
+
 ## 0.4.4 — 15/11/2026 — « Modifier la fiche » en vrai bouton
 
 - Le lien gris « Modifier la fiche », perdu au bout de la ligne d'infos, devient un bouton (avec un crayon) à droite du titre du livre (sous le titre sur iPhone). La ligne d'infos dit « pas d'ISBN » tant qu'il n'y en a pas.

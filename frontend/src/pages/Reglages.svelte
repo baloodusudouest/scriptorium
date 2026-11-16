@@ -18,9 +18,14 @@
 <section class="max-w-3xl rounded-2xl border bg-card p-5">
   <h2 class="text-lg font-semibold">Écriture</h2>
   <p class="mt-1 text-sm text-muted-foreground">
-    {session.lecture_seule
-      ? 'Lecture seule : rien n\'est envoyé à Mistral et rien n\'est déposé dans Grimmory. À retirer dans la stack (SCRIPTORIUM_LECTURE_SEULE) quand le premier jour s\'est bien passé.'
-      : 'Scriptorium envoie les pages à Mistral et dépose les livres dans Grimmory, toujours sur ton clic. Pour le premier jour d\'une nouvelle version : SCRIPTORIUM_LECTURE_SEULE=oui dans la stack.'}
+    <!-- 0.5 : la lecture seule peut venir de toute la maison (MAISON_LECTURE_SEULE) ou de Scriptorium seul -->
+    {#if session.lecture_seule && session.origine_lecture_seule === 'maison'}
+      Lecture seule pour toute la maison (MAISON_LECTURE_SEULE) : rien n'est envoyé à Mistral et rien n'est déposé dans Grimmory. À retirer dans la stack quand le premier jour s'est bien passé, ou SCRIPTORIUM_LECTURE_SEULE=non pour rendre l'écriture à Scriptorium seul.
+    {:else if session.lecture_seule}
+      Lecture seule pour cette appli (SCRIPTORIUM_LECTURE_SEULE) : rien n'est envoyé à Mistral et rien n'est déposé dans Grimmory. À retirer dans la stack quand le premier jour s'est bien passé.
+    {:else}
+      Scriptorium envoie les pages à Mistral et dépose les livres dans Grimmory, toujours sur ton clic. Pour le premier jour d'une nouvelle version : MAISON_LECTURE_SEULE=oui (toute la maison) ou SCRIPTORIUM_LECTURE_SEULE=oui (cette appli) dans la stack.
+    {/if}
   </p>
 </section>
 
