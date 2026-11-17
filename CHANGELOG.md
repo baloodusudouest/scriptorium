@@ -1,5 +1,11 @@
 # Journal des versions — Scriptorium
 
+## 0.6.1 — 17 novembre 2026 — corrections de l'audit
+
+- **Bug coûteux** : une réponse inattendue de Mistral (page HTML d'un proxy, image mal encodée) ou une erreur d'écriture (disque plein) faisait relancer la lecture payante de la même page toutes les 3 secondes, sans fin. La réponse illisible est maintenant une erreur de Mistral ordinaire ; toute autre panne arrête la lecture du livre et s'affiche sur sa fiche (« Lecture arrêtée à la page … »). Relancer la lecture reprend à cette page.
+- Intégration continue : l'image n'est plus publiée si les tests échouent (`docker.yml` appelle `tests.yml` avant de construire).
+- Tests : 100 (dont la panne inattendue et la réponse illisible).
+
 ## 0.6.0 — 16 novembre 2026 — réglages dans l'appli, sauvegarde et restauration ; anciens noms retirés
 
 - **Réglages d'usage dans l'appli** : la recherche en ligne de la fiche (BnF, Open Library), le prix estimé par page lue et la définition des pages découpées quittent la stack. Ils se changent dans Réglages, tuile « Usage » (`GET` et `PUT /api/reglages`, session ; une valeur du mauvais type ou hors bornes est refusée avec un message clair). Ils sont gardés dans `reglages.json` du dossier de données (`maison.Reglages`).

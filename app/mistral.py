@@ -74,13 +74,16 @@ def lire_page(image_jpeg: bytes, cle: str, url: str, modele: str, client: httpx.
         raise ErreurMistral("trop de demandes ou crédit épuisé chez Mistral (429)")
     if r.status_code >= 400:
         raise ErreurMistral(f"Mistral a répondu {r.status_code} : {r.text[:200]}")
-    donnees = r.json()
-    textes, images = [], {}
-    for p in donnees.get("pages", []):
-        textes.append(p.get("markdown", ""))
-        for img in p.get("images", []) or []:
-            if img.get("id") and img.get("image_base64"):
-                images[img["id"]] = _decoder(img["image_base64"])
+    try:   # 0.6.1 : une réponse illisible (page HTML, base64 abîmé) est une erreur de Mistral, pas un plantage
+        donnees = r.json()
+        textes, images = [], {}
+        for p in donnees.get("pages", []):
+            textes.append(p.get("markdown", ""))
+            for img in p.get("images", []) or []:
+                if img.get("id") and img.get("image_base64"):
+                    images[img["id"]] = _decoder(img["image_base64"])
+    except (ValueError, TypeError, AttributeError) as e:
+        raise ErreurMistral(f"réponse illisible de Mistral ({type(e).__name__})") from e
     md = "\n\n".join(textes)
     facturees = (donnees.get("usage_info") or {}).get("pages_processed") or max(1, len(donnees.get("pages", [])))
     douteuse = _douteuse(md)

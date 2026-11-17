@@ -152,3 +152,36 @@ def test_page_gardee_en_image_dans_l_epub(client, monkeypatch):
     with zipfile.ZipFile(io.BytesIO(client.get(f"/api/livres/{livre_id}/telecharger/epub").content)) as z:
         textes = " ".join(z.read(n).decode() for n in z.namelist() if n.endswith(".xhtml"))
     assert "Recette 13" not in textes and "Recette 11" in textes   # la page 3 (n° 13) est entrée en image
+
+
+# ---------------------------------------------------------------- 0.6.1 : une panne inattendue arrête la lecture
+
+def test_panne_inattendue_arrete_la_lecture_sans_relancer(client, monkeypatch):
+    livre_id = importer(client, pdf_livre([None, None]))
+    main.ETAT["travail"].tout_faire()
+    appels = []
+
+    def lire_page(image, cle, url, modele, client=None):
+        appels.append(1)
+        raise OSError("disque plein")
+    monkeypatch.setattr(mistral, "lire_page", lire_page)
+    assert client.post(f"/api/livres/{livre_id}/lecture").status_code == 200
+    for _ in range(3):                       # la boucle de fond repasse plusieurs fois
+        main.ETAT["travail"].tout_faire()
+    assert appels == [1]                     # une seule page payée, pas une relance toutes les 3 s
+    v = client.get(f"/api/livres/{livre_id}").json()
+    assert "disque plein" in v["erreur"]
+
+
+def test_reponse_illisible_de_mistral():
+    import httpx
+
+    def repondre(requete):
+        return httpx.Response(200, text="<html>portail</html>")
+    with httpx.Client(transport=httpx.MockTransport(repondre)) as c:
+        try:
+            mistral.lire_page(b"x", "cle", "https://mistral.exemple/ocr", "m", client=c)
+        except mistral.ErreurMistral as e:
+            assert "illisible" in str(e)
+            return
+    raise AssertionError("une réponse illisible doit lever ErreurMistral")

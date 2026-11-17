@@ -155,6 +155,9 @@ class Travail:
             try:
                 resultat = mistral.lire_page((dossier / "pages" / f"{rang:04d}.jpg").read_bytes(),
                                              self.cfg.mistral_cle, self.cfg.mistral_url, self.cfg.mistral_modele)
+                (lu / f"{rang:04d}.md").write_text(resultat.markdown, encoding="utf-8")
+                for nom, contenu in resultat.images.items():
+                    (lu / "images" / f"p{rang:04d}-{Path(nom).name}").write_bytes(contenu)
             except mistral.ErreurMistral as e:
                 self.base.ecrire("UPDATE pages SET lecture = 'erreur', lecture_erreur = ? WHERE id = ?", str(e), p["id"])
                 if "401" in str(e) or "429" in str(e) or "aucune clé" in str(e):
@@ -162,9 +165,12 @@ class Travail:
                     self.base.ecrire("UPDATE livres SET lecture_demandee = 0, erreur = ? WHERE id = ?", str(e), livre_id)
                     break
                 continue
-            (lu / f"{rang:04d}.md").write_text(resultat.markdown, encoding="utf-8")
-            for nom, contenu in resultat.images.items():
-                (lu / "images" / f"p{rang:04d}-{Path(nom).name}").write_bytes(contenu)
+            except Exception as e:  # noqa: BLE001 — 0.6.1 : disque plein, page absente… on s'arrête au lieu de relancer
+                message = f"Lecture arrêtée à la page {rang} : {type(e).__name__} : {e}"[:300]
+                log.exception("lecture Mistral en échec")
+                self.base.ecrire("UPDATE pages SET lecture = 'erreur', lecture_erreur = ? WHERE id = ?", message, p["id"])
+                self.base.ecrire("UPDATE livres SET lecture_demandee = 0, erreur = ? WHERE id = ?", message, livre_id)
+                break
             etat = "douteuse" if resultat.douteuse else "faite"
             self.base.ecrire("UPDATE pages SET lecture = ?, lecture_erreur = ?, numero_mistral = ?, pages_facturees = pages_facturees + ? WHERE id = ?",
                              etat, resultat.douteuse, resultat.numero, resultat.pages_facturees, p["id"])
