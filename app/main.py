@@ -20,6 +20,7 @@ import hmac
 import shutil
 import urllib.error
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Request
@@ -489,6 +490,7 @@ def enregistrer_texte(livre_id: int, rang: int, corps: dict = Body(...)):
         raise HTTPException(413, "Texte trop long pour une page.")
     lu = ETAT["base"].dossier(livre_id) / "lu"
     lu.mkdir(parents=True, exist_ok=True)
+    _garder_version(lu, rang)
     (lu / f"{rang:04d}.md").write_text(texte, encoding="utf-8")
     ETAT["base"].ecrire("UPDATE pages SET lecture = 'faite', lecture_erreur = '', texte_main = 1, relue = 1 "
                         "WHERE livre_id = ? AND rang = ?", livre_id, rang)
@@ -506,6 +508,17 @@ def marquer_relue(livre_id: int, rang: int, corps: dict = Body(default={})):
     return _vue(_livre(livre_id), avec_pages=True)
 
 
+def _garder_version(lu, rang: int) -> None:
+    """0.6.3 : avant de remplacer le texte d'une page, l'ancien part dans lu/historique (10 versions par page)."""
+    actuel = lu / f"{rang:04d}.md"
+    if actuel.is_file():
+        hist = lu / "historique"
+        hist.mkdir(parents=True, exist_ok=True)
+        (hist / f"{rang:04d}-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.md").write_bytes(actuel.read_bytes())
+        for vieux in sorted(hist.glob(f"{rang:04d}-*.md"))[:-10]:
+            vieux.unlink(missing_ok=True)
+
+
 @app.post("/api/livres/{livre_id}/pages/{rang}/relire")
 def relire_page(livre_id: int, rang: int):
     """Fait relire cette page seule par Mistral (le texte corrigé à la main est alors abandonné)."""
@@ -515,6 +528,7 @@ def relire_page(livre_id: int, rang: int):
         raise HTTPException(409, "Aucune clé Mistral dans la stack (SCRIPTORIUM_MISTRAL_CLE).")
     exiger_ecriture("envoyé à Mistral")
     base: Base = ETAT["base"]
+    _garder_version(base.dossier(livre_id) / "lu", rang)      # 0.6.3 : le texte corrigé à la main n'est plus perdu
     base.ecrire("UPDATE pages SET lecture = 'attente', lecture_erreur = '', texte_main = 0, relue = 0, ecartee = 0 "
                 "WHERE livre_id = ? AND rang = ?", livre_id, rang)
     base.ecrire("UPDATE livres SET etat = 'lecture', lecture_demandee = 1, erreur = '' WHERE id = ?", livre_id)

@@ -1,5 +1,9 @@
 # Journal des versions — Scriptorium
 
+## 0.6.3 — 17 novembre 2026 — corrections de l'audit, suite
+
+- Le texte d'une page n'est plus perdu : avant une correction enregistrée ou « Relire cette page », l'ancien texte part dans `lu/historique/` (10 versions par page). Une relecture par Mistral ne détruit plus une page corrigée à la main.
+
 ## 0.6.2 — 17 novembre 2026 (connexion plus sûre)
 - **Connexion plus sûre** (audit du 17/11/2026, même correctif dans toutes les applis maison) :
   - un cookie portant un caractère non ASCII donnait une erreur 500 sur toute l'API ; il est maintenant simplement refusé ;
