@@ -2,6 +2,14 @@
 
 Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaque fin de session, dans le même commit que le code.
 
+## État (18/11/2026)
+
+- **0.7.0** (18/11/2026) : santé des tâches de fond (socle 0.9.0, `app/maison.py` copie signée non retouchée).
+  - Tâches dans `maison.TACHES`, déclarées par `Travail.demarrer` (rien quand `travail_auto` est coupé) : `purge-corbeille` (régulière 3 600 s, témoin de vie du fil de travail), `decoupe`, `lecture-mistral`, `pdf-a5` (à la demande, autour de chaque tâche de `une_tache` ; pour le PDF, autour de `pdf_livre.fabriquer_pdf`) ; `copie-des-bases` (régulière 86 400 s, `maison.planifier_copie` lancée dans `cycle`, annulée à l'arrêt).
+  - Copie de `scriptorium.db` à 02:20 heure de Paris dans `<données>/copies` (`scriptorium-derniere.db`, `copie.json`).
+  - `/health` ajoute `version_socle`, `taches`, `copie_base` (messages seulement avec `MAISON_JETON` ou une session). Un seul worker uvicorn. Tests : `tests/test_sante.py`.
+  - **Jamais essayé sur la vraie installation** (ni la copie de nuit, ni une restauration depuis la copie).
+
 ## État (16/11/2026)
 
 - **0.6.0** (16/11/2026) : réglages dans l'appli, sauvegarde et restauration ; anciens noms retirés.

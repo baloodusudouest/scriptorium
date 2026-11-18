@@ -12,6 +12,9 @@ Réglages d'usage (0.6) : <données>/reglages.json (maison.Reglages), changés d
 Écritures hors de chez Scriptorium (gardées par exiger_ecriture, journalisées) :
     - l'envoi des pages à Mistral (elles sortent de la maison et la lecture est payante) ;
     - le dépôt dans le bookdrop de Grimmory (jamais par-dessus un fichier existant).
+0.7.0 (santé des tâches de fond, socle 0.9.0) : tâches suivies dans maison.TACHES (voir travail.py), copie
+cohérente de scriptorium.db chaque nuit à 02:20 (heure de Paris) dans <données>/copies ; /health ajoute
+version_socle, taches et copie_base. Un seul worker uvicorn (registre en mémoire).
 """
 from __future__ import annotations
 
@@ -79,7 +82,11 @@ async def cycle(app: FastAPI):
     # Un envoi ou une lecture interrompus par un redémarrage reprennent tout seuls.
     if cfg.travail_auto:
         travail.demarrer()
+    # 0.7.0 : copie cohérente de la base chaque nuit (heure de Paris), dans <données>/copies
+    copie = asyncio.create_task(maison.planifier_copie(APPLI, [cfg.data / "scriptorium.db"], cfg.data / "copies",
+                                                       maison.HEURES_COPIE[APPLI]))
     yield
+    copie.cancel()
     travail.arreter()
     base.fermer()
 
@@ -126,8 +133,11 @@ async def _lecture_seule(_: Request, exc: LectureSeule):
 # ================================================================ public et connexion
 
 @app.get("/health")
-def sante():
-    return {"ok": True, "version": __version__}
+def sante(request: Request):
+    # 0.7.0 : + version_socle, taches, copie_base (messages d'erreur seulement avec le jeton commun ou une session)
+    return {"ok": True, "version": __version__,
+            **maison.sante(request, jeton_commun=maison.jetons(),
+                           session_ok=ETAT["sessions"].connecte(request.cookies))}
 
 
 @app.get("/api/session")

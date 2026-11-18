@@ -150,7 +150,9 @@ def test_porte_du_pc_fermee_au_jeton_commun(client):
 
 
 def test_sante_inchangee(client):
-    assert client.get("/health").json() == {"ok": True, "version": main.__version__}
+    r = client.get("/health").json()
+    assert r["ok"] is True and r["version"] == main.__version__
+    assert set(r) == {"ok", "version", "version_socle", "taches", "copie_base"}       # 0.7.0 : santé des tâches
 
 
 # ---------------------------------------------------------------- restauration

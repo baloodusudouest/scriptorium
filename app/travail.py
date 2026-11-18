@@ -2,6 +2,9 @@
 
 Une seule tâche tourne à la fois, dans un fil à part ; l'interface lit l'avancement dans la base.
 Un redémarrage reprend où l'on en était : une page déjà découpée ou déjà lue n'est pas refaite.
+0.7.0 (socle 0.9.0) : chaque tour est suivi dans maison.TACHES, lu par /health et la veille de l'Anneau :
+« purge-corbeille » (régulière, toutes les heures : elle dit aussi si le fil de travail est mort) et, à la demande,
+« decoupe », « lecture-mistral », « pdf-a5 ». Les erreurs restent traitées comme avant (journal, fiche du livre).
 """
 from __future__ import annotations
 
@@ -14,11 +17,16 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import contre, inventaire, mistral
+from . import contre, inventaire, maison, mistral
 from .base import Base, maintenant
 from .config import CORBEILLE_JOURS, EUROS_PAR_DOLLAR, REGLAGES
 
 log = logging.getLogger("scriptorium.travail")
+
+# 0.7.0 : tâches suivies dans maison.TACHES. Une découpe ou une lecture peut durer longtemps : ce sont des tâches à la
+# demande (jamais « bloquée ») ; la purge, à chaque heure dans le même fil, sert de témoin de vie de ce fil.
+TACHE_PURGE, PERIODE_PURGE = "purge-corbeille", 3600
+TACHE_DECOUPE, TACHE_LECTURE, TACHE_PDF = "decoupe", "lecture-mistral", "pdf-a5"
 
 
 def _reglage(reglages, cle):
@@ -61,6 +69,9 @@ class Travail:
 
     # ------------------------------------------------------------ fil
     def demarrer(self) -> None:
+        maison.TACHES.declarer(TACHE_PURGE, PERIODE_PURGE)
+        for nom in (TACHE_DECOUPE, TACHE_LECTURE, TACHE_PDF):
+            maison.TACHES.declarer(nom, type="demande")
         self._fil = threading.Thread(target=self._boucle, name="travail", daemon=True)
         self._fil.start()
 
@@ -69,10 +80,11 @@ class Travail:
 
     def _boucle(self) -> None:
         while not self._arret.is_set():
-            if time.monotonic() - self._purge_le > 3600 or not self._purge_le:
+            if time.monotonic() - self._purge_le > PERIODE_PURGE or not self._purge_le:
                 self._purge_le = time.monotonic()
                 try:                    # dans son propre essai : une purge ratée ne bloque pas les tâches
-                    self.purger_corbeille()
+                    with maison.TACHES.tour(TACHE_PURGE):
+                        self.purger_corbeille()
                 except Exception:  # noqa: BLE001
                     log.exception("purge de la corbeille en échec")
             try:
@@ -87,11 +99,13 @@ class Travail:
         # 0.6.7 : un livre dans la corbeille (supprime_le posé) n'est plus travaillé
         livre = self.base.un("SELECT * FROM livres WHERE etat = 'decoupe' AND supprime_le = '' ORDER BY id LIMIT 1")
         if livre:
-            self.decouper(livre["id"])
+            with maison.TACHES.tour(TACHE_DECOUPE):
+                self.decouper(livre["id"])
             return True
         livre = self.base.un("SELECT * FROM livres WHERE etat = 'lecture' AND lecture_demandee = 1 AND supprime_le = '' ORDER BY id LIMIT 1")
         if livre:
-            self.lire(livre["id"])
+            with maison.TACHES.tour(TACHE_LECTURE):
+                self.lire(livre["id"])
             return True
         livre = self.base.un("SELECT * FROM livres WHERE pdf_demande = 1 AND supprime_le = '' ORDER BY id LIMIT 1")
         if livre:
@@ -108,7 +122,8 @@ class Travail:
         pages = self.base.lire("SELECT * FROM pages WHERE livre_id = ? AND ecartee = 0 ORDER BY ordre", livre["id"])
         nom = f"{fabrication.nom_fichier(livre['auteur'], livre['titre'])} - A5.pdf"
         try:
-            pdf_livre.fabriquer_pdf(dossier, livre, pages, dossier / "sortie" / nom)
+            with maison.TACHES.tour(TACHE_PDF):      # 0.7.0 : un PDF raté met la tâche en erreur (et la fiche, comme avant)
+                pdf_livre.fabriquer_pdf(dossier, livre, pages, dossier / "sortie" / nom)
         except Exception as e:  # noqa: BLE001 — l'erreur est montrée sur la fiche du livre
             log.exception("PDF A5 en échec")
             self.base.ecrire("UPDATE livres SET pdf_demande = 0, pdf_erreur = ? WHERE id = ?", f"{type(e).__name__} : {e}"[:500], livre["id"])

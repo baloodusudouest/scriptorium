@@ -1,5 +1,11 @@
 # Journal des versions — Scriptorium
 
+## 0.7.0 — 18 novembre 2026 (santé des tâches de fond)
+- **Tâches suivies** (module commun `maison.TACHES`, lues dans `/health` et par la veille de l'Anneau) : `purge-corbeille` (régulière, 3 600 s ; elle passe dans le fil de travail, elle dit donc aussi si ce fil est mort), `decoupe`, `lecture-mistral` et `pdf-a5` (à la demande : une découpe ou une lecture peut durer longtemps ; « erreur » si la dernière s'est arrêtée sur une erreur imprévue, ou si le dernier PDF A5 a raté), `copie-des-bases` (régulière, 86 400 s). Le comportement ne change pas : les erreurs restent notées au journal et sur la fiche du livre.
+- **Copie des bases** : chaque nuit à 02:20 (heure de Paris, quel que soit le fuseau du conteneur), copie cohérente de `scriptorium.db` (API de sauvegarde de SQLite, contrôle d'intégrité) dans `<données>/copies/scriptorium-derniere.db`, écrasée chaque nuit (Hyper Backup tient l'historique) ; résultat dans `<données>/copies/copie.json`.
+- **`/health`** : ajoute `version_socle`, `taches` et `copie_base` ; rien d'existant ne change. Les messages d'erreur des tâches n'apparaissent qu'avec le jeton commun (`Authorization: Bearer MAISON_JETON`) ou une session valide.
+- `maison.py` du socle 0.9.1. Un seul worker uvicorn (le registre des tâches vit en mémoire).
+
 ## 0.6.7 — 18 novembre 2026 (constats moyens de l'audit)
 - **M38** : supprimer un livre le met dans une corbeille pour 30 jours au lieu de tout effacer : il disparaît de la liste, sa lecture et son PDF demandés s'arrêtent, mais le PDF source, les pages et le texte relu restent sur le NAS. Une petite section « Corbeille » de l'écran Livres permet de le restaurer (`POST /api/livres/{id}/restaurer`, liste par `GET /api/corbeille`) ; la tâche de fond l'efface pour de bon après 30 jours (ligne « effacement » au journal).
 - **M40** : l'EPUB, le PDF des pages et une page tournée sont écrits dans un fichier provisoire puis renommés d'un coup (`os.replace`) : un arrêt en route ne laisse plus un fichier tronqué sous le nom final. Le PDF A5 le faisait déjà.
