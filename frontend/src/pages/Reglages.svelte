@@ -18,6 +18,7 @@
     recherche_web: 'Recherche en ligne de la fiche',
     prix_page: 'Prix estimé par page lue',
     dpi: 'Définition des pages découpées',
+    plafond_livre: 'Plafond de dépense par livre',
   }
   let reglages = $state(null)        // valeurs enregistrées
   let saisie = $state(null)          // valeurs du formulaire
@@ -45,6 +46,7 @@
     try {
       const r = await api.put('/api/reglages', {
         recherche_web: !!saisie.recherche_web, prix_page: Number(saisie.prix_page), dpi: Number(saisie.dpi),
+        plafond_livre: Number(saisie.plafond_livre),
       })
       reglages = r.reglages
       saisie = { ...r.reglages }
@@ -61,7 +63,7 @@
   let messageRestaurer = $state('')
   let attenteRestaurer = $state(false)
 
-  const texte = (k, v) => (typeof v === 'boolean' ? (v ? 'oui' : 'non') : k === 'prix_page' ? `${v} $` : k === 'dpi' ? `${v} dpi` : String(v))
+  const texte = (k, v) => (typeof v === 'boolean' ? (v ? 'oui' : 'non') : k === 'prix_page' ? `${v} $` : k === 'plafond_livre' ? (Number(v) ? `${v} €` : 'aucun') : k === 'dpi' ? `${v} dpi` : String(v))
   const jour = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   async function chercherDates() {
@@ -148,6 +150,10 @@
           <span class="text-xs text-muted-foreground">en points par pouce, pour les prochains PDF importés</span>
           <input type="number" inputmode="numeric" step="1" min={bornes.dpi?.[0]} max={bornes.dpi?.[1]} required
                  bind:value={saisie.dpi} class={champ} /></label>
+        <label class="flex min-w-0 flex-col gap-1.5 text-sm"><span class="font-medium">{libelles.plafond_livre}</span>
+          <span class="text-xs text-muted-foreground">en euros de lecture par Mistral (1 $ ≈ 0,90 €) ; au-delà, Scriptorium s'arrête et demande ; 0 : pas de plafond</span>
+          <input type="number" inputmode="decimal" step="0.5" min={bornes.plafond_livre?.[0]} max={bornes.plafond_livre?.[1]} required
+                 bind:value={saisie.plafond_livre} class={champ} /></label>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={!modifie || enregistrement}>{enregistrement ? 'Enregistrement…' : 'Enregistrer les réglages'}</Button>

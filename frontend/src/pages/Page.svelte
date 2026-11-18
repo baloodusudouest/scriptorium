@@ -78,14 +78,15 @@
       if (r?.liste_pages) l = r
       return r ?? true
     } catch (err) {
-      if (err.statut === 401) ondeconnecte(); else message = err.message
+      if (err.statut === 401) ondeconnecte(); else if (err.statut === 402) plafond = err.message; else message = err.message
     } finally { attente = '' }
   }
+  let plafond = $state('')      // 0.6.6 : relire cette page dépasserait le plafond du livre
 
   async function enregistrer() {
     if (await geste('texte', `/api/livres/${id}/pages/${rang}/texte`, { markdown: texte })) original = texte
   }
-  const relire = () => geste('relire', `/api/livres/${id}/pages/${rang}/relire`)
+  const relire = async (depasser = false) => { if (await geste('relire', `/api/livres/${id}/pages/${rang}/relire`, depasser ? { depasser: true } : undefined)) plafond = '' }
   const rendu = (valeur) => geste('rendu', `/api/livres/${id}/pages/${rang}`, { rendu: valeur })
   async function tourner() {
     if (await geste('tourner', `/api/livres/${id}/pages/${rang}/tourner`)) version = Date.now()
@@ -178,6 +179,13 @@
   </header>
 
   {#if message}<p class="mb-4 rounded-xl border border-destructive/40 p-3 text-sm text-destructive" role="alert">{message}</p>{/if}
+  {#if plafond}
+    <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border p-3 text-sm" role="alert">
+      <span class="min-w-0 flex-1">{plafond}</span>
+      <Button variant="outline" onclick={() => relire(true)} disabled={attente === 'relire'}>Dépasser pour ce livre</Button>
+      <Button variant="ghost" onclick={() => (plafond = '')}>Annuler</Button>
+    </div>
+  {/if}
 
   <div class="grid gap-4 lg:grid-cols-2">
     <figure class="flex flex-col gap-2">
@@ -258,7 +266,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <Button onclick={enregistrer} disabled={!modifie || attente === 'texte'}>{attente === 'texte' ? 'Enregistrement…' : 'Enregistrer le texte'}</Button>
         {#if modifie}<Button variant="ghost" onclick={() => (texte = original)}>Annuler les changements</Button>{/if}
-        <Button variant="outline" onclick={relire} disabled={lectureSeule || enLecture || attente === 'relire'}>Faire relire par Mistral</Button>
+        <Button variant="outline" onclick={() => relire()} disabled={lectureSeule || enLecture || attente === 'relire'}>Faire relire par Mistral</Button>
       </div>
       {#if marker !== null}
         <details class="text-sm">

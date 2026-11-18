@@ -1,5 +1,8 @@
 # Journal des versions — Scriptorium
 
+## 0.6.6 — 18 novembre 2026 (plafond par livre)
+- **Plafond de dépense par livre** (décision du 18/11/2026, Q12 de l'audit) : réglage « Plafond de dépense par livre », 2 € par défaut (0 : pas de plafond ; 1 $ ≈ 0,90 €). Lancer une lecture ou relire une page qui ferait dépasser le plafond répond par le montant et demande « Dépasser pour ce livre » ; la lecture de fond s'arrête aussi d'elle-même avant la page de trop. Le plafond levé est noté au journal et vaut pour ce livre seulement.
+
 ## 0.6.5 — 18 novembre 2026 (cookies Secure)
 - **Cookies `Secure` en https** (audit du 17/11/2026, même correctif dans toutes les applis maison) : ouverte en https (directement, derrière Tailscale Serve qui le dit par `X-Forwarded-Proto`, ou d'après l'origine de la page), l'appli pose ses cookies de session avec l'attribut `Secure` : ils ne partent jamais en clair. En http (adresse locale), rien ne change.
 - `entrypoint.sh` refuse de lancer l'appli en root quand `/data` appartient à root (dossier créé par Docker) et dit le remède ; dépannage seulement : `MAISON_ROOT_ACCEPTE=oui`.

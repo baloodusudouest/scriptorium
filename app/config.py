@@ -19,7 +19,10 @@ REGLAGES = {
     "recherche_web": True,     # fiche par l'ISBN : interroger la BnF et Open Library (lecture seule)
     "prix_page": 0.002,        # estimation affichée avant une lecture par Mistral, en dollars par page
     "dpi": 200,                # définition des pages découpées dans un PDF importé
+    "plafond_livre": 2.0,      # 0.6.6 : euros de lecture Mistral par livre au-delà desquels on s'arrête et on demande ; 0 : pas de plafond
 }
+# 0.6.6 : le prix par page est en dollars (tarif de Mistral) ; le plafond, en euros. Conversion approximative.
+EUROS_PAR_DOLLAR = 0.9
 # Anciennes variables de la stack, reprises une seule fois (premier démarrage de la 0.6), puis plus jamais lues
 VARIABLES_REPRISES = {
     "recherche_web": "SCRIPTORIUM_RECHERCHE_WEB",
@@ -27,7 +30,7 @@ VARIABLES_REPRISES = {
     "dpi": "SCRIPTORIUM_DPI",
 }
 # Bornes vérifiées à l'enregistrement (écran Réglages, restauration)
-BORNES = {"prix_page": (0.0, 1.0), "dpi": (72, 600)}
+BORNES = {"prix_page": (0.0, 1.0), "dpi": (72, 600), "plafond_livre": (0.0, 100.0)}
 # Clés à ne jamais sortir dans une sauvegarde (aucune aujourd'hui : les trois réglages sont sans secret)
 EXCLUS: tuple[str, ...] = ()
 

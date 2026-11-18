@@ -30,6 +30,7 @@ from . import __version__, capture, contre, fabrication, inventaire, maison, mis
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import Base, maintenant
 from .config import APPLI, BORNES, EXCLUS, REGLAGES, VARIABLES_REPRISES, Config, charger
+from . import travail as _travail
 from .travail import Travail, supprimer_dossier, vignette
 
 ETAT: dict = {}
@@ -189,7 +190,8 @@ def _bilan(livre: dict, pages: list[dict]) -> dict:
         "inventaire": inv, "lecture": compte,
         "contre": {**contre_compte, "a_relire": [p["rang"] for p in gardees if contre.a_relire(p)],
                    "pc": bool(ETAT["cfg"].jeton_calcul)},
-        "estimation": {"pages": a_lire, "dollars": round(a_lire * ETAT["reglages"].get("prix_page"), 2)},
+        "estimation": {"pages": a_lire, "dollars": round(a_lire * ETAT["reglages"].get("prix_page"), 2),
+                       **{k: v for k, v in _travail.cout(ETAT["base"], ETAT["reglages"], livre["id"], a_lire).items()}},
         "facturees": sum(p["pages_facturees"] for p in pages),
         "pdf": bool(livre["pdf"]) and (ETAT["base"].dossier(livre["id"]) / "sortie" / livre["pdf"]).exists(),
         "fabrique": bool(livre["epub"]) and (ETAT["base"].dossier(livre["id"]) / "sortie" / livre["epub"]).exists(),
@@ -520,13 +522,14 @@ def _garder_version(lu, rang: int) -> None:
 
 
 @app.post("/api/livres/{livre_id}/pages/{rang}/relire")
-def relire_page(livre_id: int, rang: int):
+def relire_page(livre_id: int, rang: int, corps: dict = Body(default={})):
     """Fait relire cette page seule par Mistral (le texte corrigé à la main est alors abandonné)."""
     _livre(livre_id)
     _page(livre_id, rang)
     if not ETAT["cfg"].mistral_cle:
         raise HTTPException(409, "Aucune clé Mistral dans la stack (SCRIPTORIUM_MISTRAL_CLE).")
     exiger_ecriture("envoyé à Mistral")
+    _garder_plafond(livre_id, 1, corps)
     base: Base = ETAT["base"]
     _garder_version(base.dossier(livre_id) / "lu", rang)      # 0.6.3 : le texte corrigé à la main n'est plus perdu
     base.ecrire("UPDATE pages SET lecture = 'attente', lecture_erreur = '', texte_main = 0, relue = 0, ecartee = 0 "
@@ -577,8 +580,21 @@ def confirmer_inventaire(livre_id: int):
 
 # ---------------------------------------------------------------- lecture par Mistral
 
+def _garder_plafond(livre_id: int, pages: int, corps: dict) -> None:
+    """0.6.6 : plafond de dépense par livre (Réglages, 2 € par défaut). Au-delà : 402 avec le montant, sauf si
+    Julien confirme ({"depasser": true}) ; le plafond est alors levé pour ce livre."""
+    c = _travail.cout(ETAT["base"], ETAT["reglages"], livre_id, pages)
+    if not c["depasse"]:
+        return
+    if (corps or {}).get("depasser") is True:
+        ETAT["base"].ecrire("UPDATE livres SET plafond_leve = 1 WHERE id = ?", livre_id)
+        ETAT["base"].noter("lecture_mistral", livre_id, f"plafond de {c['plafond']} € levé pour ce livre (environ {c['apres']} €)")
+        return
+    raise HTTPException(402, _travail.message_plafond(c))
+
+
 @app.post("/api/livres/{livre_id}/lecture")
-def lancer_lecture(livre_id: int):
+def lancer_lecture(livre_id: int, corps: dict = Body(default={})):
     """Envoie à Mistral toutes les pages pas encore lues (0.2.2 : sans attendre l'inventaire, car Mistral
     repère aussi le numéro imprimé de chaque page ; l'inventaire se confirme ensuite)."""
     livre_ = _livre(livre_id)
@@ -587,6 +603,9 @@ def lancer_lecture(livre_id: int):
     if not ETAT["cfg"].mistral_cle:
         raise HTTPException(409, "Aucune clé Mistral dans la stack (SCRIPTORIUM_MISTRAL_CLE).")
     exiger_ecriture("envoyé à Mistral")
+    a_lire = ETAT["base"].un("SELECT COUNT(*) AS n FROM pages WHERE livre_id = ? AND ecartee = 0 AND texte_main = 0 "
+                             "AND lecture IN ('attente', 'erreur')", livre_id)["n"]
+    _garder_plafond(livre_id, a_lire, corps)
     ETAT["base"].ecrire("UPDATE livres SET etat = 'lecture', lecture_demandee = 1, erreur = '' WHERE id = ?", livre_id)
     return _vue(_livre(livre_id))
 

@@ -59,7 +59,7 @@ def test_reprise_au_premier_demarrage_puis_variable_ignoree(monkeypatch, tmp_pat
     monkeypatch.setenv("SCRIPTORIUM_DPI", "150")
     with demarrer() as c:
         connecter(c)
-        assert c.get("/api/reglages").json()["reglages"] == {"recherche_web": False, "prix_page": 0.003, "dpi": 150}
+        assert c.get("/api/reglages").json()["reglages"] == {"recherche_web": False, "prix_page": 0.003, "dpi": 150, "plafond_livre": 2.0}
         journal = [j for j in c.get("/api/journal").json() if j["quoi"] == "reglage_repris"]
         assert len(journal) == 3 and any("SCRIPTORIUM_RECHERCHE_WEB" in j["detail"] for j in journal)
     assert json.loads((tmp_path / "reglages.json").read_text())["dpi"] == 150
@@ -89,7 +89,7 @@ def test_changer_les_reglages(client):
     connecter(client)
     r = client.put("/api/reglages", json={"recherche_web": False, "prix_page": 0.004, "dpi": 300})
     assert r.status_code == 200
-    assert r.json()["reglages"] == {"recherche_web": False, "prix_page": 0.004, "dpi": 300}
+    assert r.json()["reglages"] == {"recherche_web": False, "prix_page": 0.004, "dpi": 300, "plafond_livre": 2.0}
     assert main.ETAT["travail"]._dpi() == 300                         # la découpe suit le réglage
     assert client.get("/api/services").json()["mistral"]["prix_page"] == 0.004
     assert any(j["quoi"] == "reglages" and "dpi : 200 → 300" in j["detail"] for j in client.get("/api/journal").json())
@@ -97,7 +97,7 @@ def test_changer_les_reglages(client):
 
 @pytest.mark.parametrize("corps", [
     {"recherche_web": "non"}, {"recherche_web": 1}, {"dpi": "beaucoup"}, {"dpi": 150.5}, {"dpi": True},
-    {"dpi": 20}, {"prix_page": "0.002"}, {"prix_page": -1}, {"inconnu": 1},
+    {"dpi": 20}, {"prix_page": "0.002"}, {"prix_page": -1}, {"inconnu": 1}, {"plafond_livre": -1}, {"plafond_livre": 500},
 ])
 def test_mauvais_type_refuse(client, corps):
     connecter(client)
@@ -185,7 +185,7 @@ def test_restaurer_dates_differences_application(client):
                                 {"cle": "recherche_web", "actuel": True, "sauve": False}]
     r = client.post("/api/restaurer", json={"le": "2026-11-14"})
     assert r.status_code == 200
-    assert r.json()["reglages"] == {"recherche_web": False, "prix_page": 0.002, "dpi": 300}
+    assert r.json()["reglages"] == {"recherche_web": False, "prix_page": 0.002, "dpi": 300, "plafond_livre": 2.0}
     assert r.json()["appliques"] == ["dpi", "recherche_web"]
     assert any(j["quoi"] == "restauration" and "2026-11-14" in j["detail"] for j in client.get("/api/journal").json())
     # Plus rien à restaurer ce jour-là

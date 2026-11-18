@@ -116,6 +116,7 @@ class Base:
             "pdf": "TEXT NOT NULL DEFAULT ''",               # nom du PDF A5 fabriqué
             "pdf_demande": "INTEGER NOT NULL DEFAULT 0",
             "pdf_erreur": "TEXT NOT NULL DEFAULT ''",
+            "plafond_leve": "INTEGER NOT NULL DEFAULT 0",    # 0.6.6 : Julien a accepté de dépasser le plafond pour ce livre
         }
         for nom, definition in nouvelles.items():
             if nom not in colonnes:

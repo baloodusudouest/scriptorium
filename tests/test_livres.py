@@ -433,3 +433,33 @@ def test_epub_pour_comptoir_recette_entiere_ingredients_en_liste(tmp_path):
     assert "VERRE : coupe" in p1 and "<li>VERRE" not in p1
     ids = re.findall(r'id="([^"]+)"', p1)
     assert len(ids) == len(set(ids))
+
+
+# ---------------------------------------------------------------- 0.6.6 : plafond de dépense par livre
+
+def test_plafond_de_depense_par_livre(client, monkeypatch):
+    """Décision du 18/11/2026 : 2 € de lecture Mistral par livre ; au-delà, arrêt et question."""
+    livre_id = importer(client, pdf_livre([1, 2, 3, 4]))
+    main.ETAT["travail"].tout_faire()
+    monkeypatch.setattr(mistral, "lire_page", fausse_lecture())
+    # À 1 $ la page (≈ 0,90 €), 4 pages font environ 3,60 € : refus avec le montant
+    assert client.put("/api/reglages", json={"prix_page": 1.0}).status_code == 200
+    v = client.get(f"/api/livres/{livre_id}").json()
+    assert v["bilan"]["estimation"]["depasse"] is True and v["bilan"]["estimation"]["plafond"] == 2.0
+    r = client.post(f"/api/livres/{livre_id}/lecture")
+    assert r.status_code == 402 and "Plafond de 2,00 €" in r.json()["detail"]
+    # Le travail de fond s'arrête aussi de lui-même s'il est lancé sans confirmation
+    main.ETAT["base"].ecrire("UPDATE livres SET etat = 'lecture', lecture_demandee = 1 WHERE id = ?", livre_id)
+    main.ETAT["travail"].tout_faire()
+    v = client.get(f"/api/livres/{livre_id}").json()
+    assert v["bilan"]["facturees"] == 2 and "Plafond" in v["erreur"]          # 2 pages lues (1,80 €), la 3e dépasserait
+    # Confirmé : le plafond est levé pour ce livre, la lecture va au bout
+    assert client.post(f"/api/livres/{livre_id}/lecture", json={"depasser": True}).status_code == 200
+    main.ETAT["travail"].tout_faire()
+    v = client.get(f"/api/livres/{livre_id}").json()
+    assert v["etat"] == "pret" and v["bilan"]["facturees"] == 4 and v["bilan"]["estimation"]["leve"] is True
+    # Plafond à 0 : pas de plafond
+    autre = importer(client, pdf_livre([1, 2]))
+    main.ETAT["travail"].tout_faire()
+    assert client.put("/api/reglages", json={"plafond_livre": 0.0}).status_code == 200
+    assert client.post(f"/api/livres/{autre}/lecture").status_code == 200

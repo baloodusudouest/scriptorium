@@ -15,9 +15,33 @@ from PIL import Image
 
 from . import contre, inventaire, mistral
 from .base import Base
-from .config import REGLAGES
+from .config import EUROS_PAR_DOLLAR, REGLAGES
 
 log = logging.getLogger("scriptorium.travail")
+
+
+def _reglage(reglages, cle):
+    return reglages.get(cle) if reglages is not None else REGLAGES[cle]
+
+
+def cout(base: Base, reglages, livre_id: int, pages_en_plus: int = 0) -> dict:
+    """0.6.6 : dépense de lecture Mistral d'un livre, en euros (approximatifs) : déjà facturée, et après
+    `pages_en_plus` pages de plus ; avec le plafond du livre et s'il a été levé."""
+    prix = float(_reglage(reglages, "prix_page")) * EUROS_PAR_DOLLAR
+    facturees = base.un("SELECT COALESCE(SUM(pages_facturees), 0) AS n FROM pages WHERE livre_id = ?", livre_id)["n"]
+    livre = base.un("SELECT plafond_leve FROM livres WHERE id = ?", livre_id) or {}
+    plafond = float(_reglage(reglages, "plafond_livre"))
+    deja = facturees * prix
+    apres = deja + pages_en_plus * prix
+    return {"deja": round(deja, 2), "apres": round(apres, 2), "plafond": plafond, "leve": bool(livre.get("plafond_leve")),
+            "depasse": plafond > 0 and not livre.get("plafond_leve") and apres > plafond + 1e-9}
+
+
+def message_plafond(c: dict) -> str:
+    def e(x):
+        return f"{x:.2f} €".replace(".", ",")
+    return (f"Plafond de {e(c['plafond'])} par livre : la lecture amènerait ce livre à environ {e(c['apres'])} "
+            f"(déjà {e(c['deja'])}). Confirme pour dépasser le plafond pour ce livre.")
 
 
 class Travail:
@@ -149,6 +173,11 @@ class Travail:
             if self._arret.is_set():
                 return
             rang = p["rang"]
+            if not p["texte_main"]:
+                c = cout(self.base, self.reglages, livre_id, 1)
+                if c["depasse"]:          # 0.6.6 : plafond de dépense par livre : on s'arrête et on demande
+                    self.base.ecrire("UPDATE livres SET lecture_demandee = 0, erreur = ? WHERE id = ?", message_plafond(c), livre_id)
+                    break
             if p["texte_main"]:   # texte corrigé à la relecture : Mistral ne l'écrase pas
                 self.base.ecrire("UPDATE pages SET lecture = 'faite' WHERE id = ?", p["id"])
                 continue

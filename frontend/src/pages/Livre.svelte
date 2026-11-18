@@ -82,6 +82,22 @@
     } finally { attente = '' }
   }
 
+  // 0.6.6 : plafond de dépense par livre (Réglages) : au-delà, le serveur répond 402 avec le montant ; on demande
+  let plafond = $state('')
+  async function faireLire(depasser = false) {
+    attente = 'lire'
+    message = ''
+    try {
+      const r = await api.post(`/api/livres/${id}/lecture`, depasser ? { depasser: true } : {})
+      if (r?.id) l = r.liste_pages ? r : { ...l, ...r }
+      plafond = ''
+      await lire()
+    } catch (err) {
+      if (err.statut === 401) ondeconnecte(); else if (err.statut === 402) plafond = err.message; else message = err.message
+    } finally { attente = '' }
+  }
+  const euros = (x) => x.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
   const modifierPage = (rang, corps) => geste('page', `/api/livres/${id}/pages/${rang}`, corps)
   async function validerNumero(rang) {
     await modifierPage(rang, { numero: numeroSaisi === '' ? null : Number(numeroSaisi) })
@@ -424,12 +440,20 @@
           {/if}
           {#if b.estimation.pages}
             <div class="mt-4 flex flex-wrap items-center gap-3">
-              <Button onclick={() => geste('lire', `/api/livres/${id}/lecture`)} disabled={lectureSeule || attente === 'lire'}>
+              <Button onclick={() => faireLire()} disabled={lectureSeule || attente === 'lire'}>
                 Faire lire {b.estimation.pages} page{b.estimation.pages > 1 ? 's' : ''} par Mistral
               </Button>
-              <span class="text-sm text-muted-foreground">environ {b.estimation.dollars.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $</span>
+              <span class="text-sm text-muted-foreground">environ {b.estimation.dollars.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $
+                (livre : environ {euros(b.estimation.apres)} €{b.estimation.plafond > 0 && !b.estimation.leve ? ` pour un plafond de ${euros(b.estimation.plafond)} €` : ''})</span>
               {#if lectureSeule}<Badge variant="outline">lecture seule : rien n'est envoyé</Badge>{/if}
             </div>
+            {#if plafond}
+              <div class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border p-3 text-sm" role="alert">
+                <span class="min-w-0 flex-1">{plafond}</span>
+                <Button variant="outline" onclick={() => faireLire(true)} disabled={attente === 'lire'}>Dépasser pour ce livre</Button>
+                <Button variant="ghost" onclick={() => (plafond = '')}>Annuler</Button>
+              </div>
+            {/if}
           {/if}
         {/if}
       </div>
