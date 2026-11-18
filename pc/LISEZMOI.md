@@ -25,3 +25,6 @@ Dans Scriptorium, la tuile **PC de calcul** (écran Connexion) dit quand le PC e
 ## Mettre à jour
 
 `docker compose -f calcul.yml pull && docker compose -f calcul.yml up -d`
+
+Depuis Scriptorium 0.6.7, le conteneur ne tourne plus en root (compte `calcul`, uid 1000). Un volume `modeles` créé par une version plus ancienne appartient à root : si les journaux disent « Permission denied » sur `/cache`, le rendre au compte une fois :
+`docker compose -f calcul.yml run --rm --user root calcul chown -R 1000:1000 /cache` (ou supprimer le volume : les modèles se retéléchargent).

@@ -16,11 +16,23 @@
   let auteur = $state('')
   let envoi = $state(null)          // avancement de 0 à 1 pendant l'envoi
   let messageEnvoi = $state('')
+  let corbeille = $state([])        // 0.6.7 : livres supprimés, gardés 30 jours
+  let messageCorbeille = $state('')
 
   async function lire() {
-    try { livres = await api.get('/api/livres'); erreur = '' }
+    try {
+      livres = await api.get('/api/livres'); erreur = ''
+      corbeille = await api.get('/api/corbeille')
+    }
     catch (err) { if (err.statut === 401) ondeconnecte(); else erreur = err.message }
   }
+
+  async function restaurer(l) {
+    messageCorbeille = ''
+    try { await api.post(`/api/livres/${l.id}/restaurer`); await lire() }
+    catch (err) { messageCorbeille = err.message }
+  }
+  const jour = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { dateStyle: 'long' })
 
   onMount(() => {
     lire()
@@ -131,4 +143,23 @@
       </li>
     {/each}
   </ul>
+{/if}
+
+{#if corbeille.length}
+  <section class="mt-10 max-w-xl" aria-label="Corbeille">
+    <h2 class="text-lg font-semibold">Corbeille</h2>
+    <p class="mt-1 text-sm text-muted-foreground">Un livre supprimé reste ici 30 jours, avec son PDF, ses pages et son texte, puis il est effacé du NAS.</p>
+    <ul class="mt-3 grid gap-2">
+      {#each corbeille as l (l.id)}
+        <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm">
+          <span class="min-w-0 break-words">
+            <span class="font-medium">{l.titre}</span>
+            {#if l.efface_le}<br /><span class="text-muted-foreground">Effacé le {jour(l.efface_le)}</span>{/if}
+          </span>
+          <Button variant="outline" size="sm" onclick={() => restaurer(l)}>Restaurer</Button>
+        </li>
+      {/each}
+    </ul>
+    {#if messageCorbeille}<p class="mt-2 text-sm text-destructive" role="alert">{messageCorbeille}</p>{/if}
+  </section>
 {/if}

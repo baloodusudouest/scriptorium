@@ -14,6 +14,7 @@ la liste des ingrédients, la préparation) :
 from __future__ import annotations
 
 import html
+import os
 import re
 import uuid
 from pathlib import Path
@@ -279,11 +280,23 @@ def fabriquer_epub(dossier: Path, livre: dict, pages: list[dict], sortie: Path) 
     livre_epub.add_item(epub.EpubNav())
     livre_epub.spine = ["nav", *sections]
     sortie.parent.mkdir(parents=True, exist_ok=True)
-    epub.write_epub(str(sortie), livre_epub)
-    if c["liste_pages"]:
-        ajouter_liste_des_pages(sortie, c["liste_pages"])
+    # 0.6.7 (audit, M40) : écrit sous un nom provisoire caché, puis renommé d'un coup : un arrêt ne laisse jamais
+    # un EPUB tronqué sous le nom final (déposable tel quel dans Grimmory).
+    tmp = provisoire(sortie)
+    try:
+        epub.write_epub(str(tmp), livre_epub)
+        if c["liste_pages"]:
+            ajouter_liste_des_pages(tmp, c["liste_pages"])
+        os.replace(tmp, sortie)
+    finally:
+        tmp.unlink(missing_ok=True)
     return {"sections": len(sections), "pages": len(pages), "pages_en_image": c["en_image"], "titres": len(sommaire),
             "pages_originales": len(c["liste_pages"]), "couverture": bool(couverture)}
+
+
+def provisoire(sortie: Path) -> Path:
+    """0.6.7 : nom provisoire caché, dans le même dossier (os.replace reste un simple renommage)."""
+    return sortie.with_name(f".{sortie.name}.partiel")
 
 
 def ajouter_liste_des_pages(chemin: Path, liste: list[tuple[str, str]]) -> None:
@@ -313,4 +326,9 @@ def fabriquer_archive(dossier: Path, pages: list[dict], sortie: Path) -> None:
 
     fichiers = [str(dossier / "pages" / f"{p['rang']:04d}.jpg") for p in pages]
     sortie.parent.mkdir(parents=True, exist_ok=True)
-    sortie.write_bytes(img2pdf.convert(fichiers))
+    tmp = provisoire(sortie)          # 0.6.7 (M40) : jamais un PDF à moitié écrit sous le nom final
+    try:
+        tmp.write_bytes(img2pdf.convert(fichiers))
+        os.replace(tmp, sortie)
+    finally:
+        tmp.unlink(missing_ok=True)

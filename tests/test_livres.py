@@ -257,12 +257,48 @@ def test_cle_refusee_arrete_la_lecture(client, monkeypatch):
     assert v["bilan"]["lecture"]["erreur"] == 1 and v["bilan"]["lecture"]["attente"] == 2
 
 
-def test_supprimer_un_livre(client):
+def test_supprimer_met_le_livre_dans_la_corbeille(client):
+    """0.6.7 (audit, M38) : supprimer ne détruit rien tout de suite ; restaurer rend le livre tel quel ;
+    la tâche de fond l'efface pour de bon après 30 jours."""
+    from datetime import datetime, timedelta
+
     livre_id = importer(client, pdf_livre([1]))
     dossier = main.ETAT["base"].dossier(livre_id)
     assert dossier.exists()
-    assert client.post(f"/api/livres/{livre_id}/supprimer").json()["ok"]
-    assert not dossier.exists() and client.get(f"/api/livres/{livre_id}").status_code == 404
+    assert client.post(f"/api/livres/{livre_id}/supprimer").json() == {"ok": True, "jours": 30}
+    assert dossier.exists() and (dossier / "source.pdf").exists()                  # rien d'effacé
+    assert client.get(f"/api/livres/{livre_id}").status_code == 404                  # masqué
+    assert all(l["id"] != livre_id for l in client.get("/api/livres").json())
+    (dans,) = client.get("/api/corbeille").json()
+    assert dans["id"] == livre_id and dans["titre"] == "Cocktails" and dans["efface_le"]
+    assert client.post(f"/api/livres/{livre_id}/supprimer").status_code == 404       # déjà dans la corbeille
+    # Restauration
+    r = client.post(f"/api/livres/{livre_id}/restaurer")
+    assert r.status_code == 200 and r.json()["id"] == livre_id
+    assert client.get("/api/corbeille").json() == [] and client.get(f"/api/livres/{livre_id}").status_code == 200
+    assert client.post(f"/api/livres/{livre_id}/restaurer").status_code == 404       # plus dans la corbeille
+    # Effacement définitif par la tâche de fond, après 30 jours seulement
+    client.post(f"/api/livres/{livre_id}/supprimer")
+    travail = main.ETAT["travail"]
+    maintenant = datetime.now().astimezone()
+    assert travail.purger_corbeille(maintenant + timedelta(days=29)) == 0 and dossier.exists()
+    assert travail.purger_corbeille(maintenant + timedelta(days=31)) == 1
+    assert not dossier.exists() and client.get("/api/corbeille").json() == []
+    assert main.ETAT["base"].un("SELECT id FROM livres WHERE id = ?", livre_id) is None
+    quoi = [e["quoi"] for e in client.get("/api/journal").json()]
+    assert {"suppression", "restauration_livre", "effacement"} <= set(quoi)
+
+
+def test_livre_dans_la_corbeille_n_est_plus_travaille(client, monkeypatch):
+    """Une lecture demandée s'arrête à la suppression : rien n'est envoyé à Mistral pour un livre de la corbeille."""
+    appels = []
+    monkeypatch.setattr(mistral, "lire_page", lambda *a, **k: appels.append(a))
+    livre_id = importer(client, pdf_livre([1, 2]))
+    main.ETAT["travail"].tout_faire()
+    main.ETAT["base"].ecrire("UPDATE livres SET etat = 'lecture', lecture_demandee = 1, pdf_demande = 1 WHERE id = ?", livre_id)
+    client.post(f"/api/livres/{livre_id}/supprimer")
+    main.ETAT["base"].ecrire("UPDATE livres SET lecture_demandee = 1, pdf_demande = 1 WHERE id = ?", livre_id)   # au pire
+    assert main.ETAT["travail"].une_tache() is False and appels == []
 
 
 # ---------------------------------------------------------------- client Mistral

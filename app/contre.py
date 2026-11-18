@@ -24,7 +24,7 @@ def prochaine_page(base: Base) -> dict | None:
     limite = time.time() - DELAI_REPRISE
     page = base.un(
         "SELECT p.id, p.livre_id, p.rang, l.langue FROM pages p JOIN livres l ON l.id = p.livre_id "
-        "WHERE l.etat IN ('inventaire', 'lecture', 'pret') AND p.ecartee = 0 AND p.texte_main = 0 "
+        "WHERE l.etat IN ('inventaire', 'lecture', 'pret') AND l.supprime_le = '' AND p.ecartee = 0 AND p.texte_main = 0 "
         "AND (p.contre = 'attente' OR (p.contre = 'calcul' AND p.contre_depuis < ?)) "
         "ORDER BY (p.lecture = 'faite') DESC, l.id, p.ordre LIMIT 1", limite)
     if page:
@@ -36,7 +36,7 @@ def prochaine_page(base: Base) -> dict | None:
 def pages_en_attente(base: Base) -> int:
     return base.un(
         "SELECT COUNT(*) AS n FROM pages p JOIN livres l ON l.id = p.livre_id "
-        "WHERE l.etat IN ('inventaire', 'lecture', 'pret') AND p.ecartee = 0 AND p.texte_main = 0 "
+        "WHERE l.etat IN ('inventaire', 'lecture', 'pret') AND l.supprime_le = '' AND p.ecartee = 0 AND p.texte_main = 0 "
         "AND p.contre IN ('attente', 'calcul')")["n"]
 
 

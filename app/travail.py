@@ -9,13 +9,14 @@ import logging
 import shutil
 import threading
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from PIL import Image
 
 from . import contre, inventaire, mistral
-from .base import Base
-from .config import EUROS_PAR_DOLLAR, REGLAGES
+from .base import Base, maintenant
+from .config import CORBEILLE_JOURS, EUROS_PAR_DOLLAR, REGLAGES
 
 log = logging.getLogger("scriptorium.travail")
 
@@ -52,6 +53,7 @@ class Travail:
         self._arret = threading.Event()
         self._fil: threading.Thread | None = None
         self.en_cours = ""      # ce qui tourne, pour l'écran Connexion
+        self._purge_le = 0.0    # 0.6.7 : dernière purge de la corbeille (heure monotone)
 
     def _dpi(self) -> int:
         """Définition des pages découpées : réglage « dpi » de l'écran Réglages (200 par défaut)."""
@@ -67,6 +69,12 @@ class Travail:
 
     def _boucle(self) -> None:
         while not self._arret.is_set():
+            if time.monotonic() - self._purge_le > 3600 or not self._purge_le:
+                self._purge_le = time.monotonic()
+                try:                    # dans son propre essai : une purge ratée ne bloque pas les tâches
+                    self.purger_corbeille()
+                except Exception:  # noqa: BLE001
+                    log.exception("purge de la corbeille en échec")
             try:
                 fait = self.une_tache()
             except Exception:  # noqa: BLE001 — une panne ne doit pas tuer le fil
@@ -76,15 +84,16 @@ class Travail:
 
     def une_tache(self) -> bool:
         """Fait la prochaine tâche en attente ; renvoie False s'il n'y avait rien."""
-        livre = self.base.un("SELECT * FROM livres WHERE etat = 'decoupe' ORDER BY id LIMIT 1")
+        # 0.6.7 : un livre dans la corbeille (supprime_le posé) n'est plus travaillé
+        livre = self.base.un("SELECT * FROM livres WHERE etat = 'decoupe' AND supprime_le = '' ORDER BY id LIMIT 1")
         if livre:
             self.decouper(livre["id"])
             return True
-        livre = self.base.un("SELECT * FROM livres WHERE etat = 'lecture' AND lecture_demandee = 1 ORDER BY id LIMIT 1")
+        livre = self.base.un("SELECT * FROM livres WHERE etat = 'lecture' AND lecture_demandee = 1 AND supprime_le = '' ORDER BY id LIMIT 1")
         if livre:
             self.lire(livre["id"])
             return True
-        livre = self.base.un("SELECT * FROM livres WHERE pdf_demande = 1 ORDER BY id LIMIT 1")
+        livre = self.base.un("SELECT * FROM livres WHERE pdf_demande = 1 AND supprime_le = '' ORDER BY id LIMIT 1")
         if livre:
             self.fabriquer_pdf(livre)
             return True
@@ -106,6 +115,17 @@ class Travail:
         else:
             self.base.ecrire("UPDATE livres SET pdf_demande = 0, pdf_erreur = '', pdf = ? WHERE id = ?", nom, livre["id"])
         self.en_cours = ""
+
+    # ------------------------------------------------------------ corbeille (0.6.7, audit M38)
+    def purger_corbeille(self, quand: datetime | None = None) -> int:
+        """Efface pour de bon (base et fichiers) les livres mis à la corbeille il y a plus de CORBEILLE_JOURS jours."""
+        limite = ((quand or datetime.now().astimezone()) - timedelta(days=CORBEILLE_JOURS)).isoformat(timespec="seconds")
+        vieux = self.base.lire("SELECT id, titre FROM livres WHERE supprime_le != '' AND supprime_le < ?", limite)
+        for l in vieux:
+            self.base.ecrire("DELETE FROM livres WHERE id = ? AND supprime_le != ''", l["id"])
+            supprimer_dossier(self.base.dossier(l["id"]))
+            self.base.noter("effacement", l["id"], f"{l['titre']} (corbeille de plus de {CORBEILLE_JOURS} jours)")
+        return len(vieux)
 
     def tout_faire(self) -> None:
         """Pour les tests : enchaîne les tâches jusqu'à ce qu'il n'y en ait plus."""
@@ -172,6 +192,8 @@ class Travail:
         for p in a_lire:
             if self._arret.is_set():
                 return
+            if (self.base.un("SELECT supprime_le FROM livres WHERE id = ?", livre_id) or {}).get("supprime_le", "x"):
+                break             # 0.6.7 : livre mis à la corbeille pendant la lecture : plus rien n'est envoyé à Mistral
             rang = p["rang"]
             if not p["texte_main"]:
                 c = cout(self.base, self.reglages, livre_id, 1)

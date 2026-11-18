@@ -20,7 +20,7 @@ import hmac
 import shutil
 import urllib.error
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Request
@@ -29,9 +29,9 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from . import __version__, capture, contre, fabrication, inventaire, maison, mistral, notice
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import Base, maintenant
-from .config import APPLI, BORNES, EXCLUS, REGLAGES, VARIABLES_REPRISES, Config, charger
+from .config import APPLI, BORNES, CORBEILLE_JOURS, EXCLUS, REGLAGES, VARIABLES_REPRISES, Config, charger
 from . import travail as _travail
-from .travail import Travail, supprimer_dossier, vignette
+from .travail import Travail, vignette
 
 ETAT: dict = {}
 PUBLIQUES = ("/api/connexion", "/api/session")
@@ -165,8 +165,9 @@ def deconnexion():
 
 # ================================================================ livres
 
-def _livre(livre_id: int) -> dict:
-    livre = ETAT["base"].un("SELECT * FROM livres WHERE id = ?", livre_id)
+def _livre(livre_id: int, corbeille: bool = False) -> dict:
+    """Un livre en place ; avec corbeille=True, un livre de la corbeille (0.6.7). Sinon 404."""
+    livre = ETAT["base"].un("SELECT * FROM livres WHERE id = ? AND (supprime_le != '') = ?", livre_id, int(corbeille))
     if not livre:
         raise HTTPException(404, "Livre inconnu.")
     return livre
@@ -208,7 +209,7 @@ def _vue(livre: dict, avec_pages: bool = False) -> dict:
 
 @app.get("/api/livres")
 def livres():
-    return [_vue(l) for l in ETAT["base"].lire("SELECT * FROM livres ORDER BY id DESC")]
+    return [_vue(l) for l in ETAT["base"].lire("SELECT * FROM livres WHERE supprime_le = '' ORDER BY id DESC")]
 
 
 @app.post("/api/livres")
@@ -317,12 +318,35 @@ def choisir_couverture(livre_id: int, corps: dict = Body(...)):
 
 @app.post("/api/livres/{livre_id}/supprimer")
 def supprimer(livre_id: int):
+    """0.6.7 (audit, M38) : le livre part dans la corbeille (rien n'est effacé) ; la tâche de fond l'efface
+    pour de bon après CORBEILLE_JOURS jours. Une lecture ou un PDF demandés sont arrêtés."""
     livre_ = _livre(livre_id)
     base: Base = ETAT["base"]
-    base.ecrire("DELETE FROM livres WHERE id = ?", livre_id)
-    supprimer_dossier(base.dossier(livre_id))
-    base.noter("suppression", livre_id, livre_["titre"])
-    return {"ok": True}
+    base.ecrire("UPDATE livres SET supprime_le = ?, lecture_demandee = 0, pdf_demande = 0 WHERE id = ?", maintenant(), livre_id)
+    base.noter("suppression", livre_id, f"{livre_['titre']} (dans la corbeille pour {CORBEILLE_JOURS} jours)")
+    return {"ok": True, "jours": CORBEILLE_JOURS}
+
+
+@app.get("/api/corbeille")
+def corbeille():
+    """Livres de la corbeille, le plus récent d'abord, avec la date de leur effacement définitif."""
+    sortie = []
+    for l in ETAT["base"].lire("SELECT id, titre, auteur, supprime_le FROM livres WHERE supprime_le != '' ORDER BY supprime_le DESC"):
+        try:
+            efface = (datetime.fromisoformat(l["supprime_le"]) + timedelta(days=CORBEILLE_JOURS)).date().isoformat()
+        except ValueError:
+            efface = ""
+        sortie.append({**l, "efface_le": efface})
+    return sortie
+
+
+@app.post("/api/livres/{livre_id}/restaurer")
+def restaurer_livre(livre_id: int):
+    """Sort un livre de la corbeille, tel qu'il était (une lecture arrêtée par la suppression se relance à la main)."""
+    livre_ = _livre(livre_id, corbeille=True)
+    ETAT["base"].ecrire("UPDATE livres SET supprime_le = '' WHERE id = ?", livre_id)
+    ETAT["base"].noter("restauration_livre", livre_id, livre_["titre"])
+    return _vue(_livre(livre_id))
 
 
 # ---------------------------------------------------------------- envoi par morceaux

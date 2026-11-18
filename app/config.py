@@ -23,6 +23,8 @@ REGLAGES = {
 }
 # 0.6.6 : le prix par page est en dollars (tarif de Mistral) ; le plafond, en euros. Conversion approximative.
 EUROS_PAR_DOLLAR = 0.9
+# 0.6.7 (audit, M38) : un livre supprimé reste ce nombre de jours dans la corbeille avant d'être effacé pour de bon
+CORBEILLE_JOURS = 30
 # Anciennes variables de la stack, reprises une seule fois (premier démarrage de la 0.6), puis plus jamais lues
 VARIABLES_REPRISES = {
     "recherche_web": "SCRIPTORIUM_RECHERCHE_WEB",

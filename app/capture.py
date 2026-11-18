@@ -8,6 +8,8 @@ l'image est refusé (garde-fou), et la photo reste alors entière.
 from __future__ import annotations
 
 import io
+import os
+from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageOps
@@ -120,7 +122,14 @@ def preparer_photo(contenu: bytes) -> bytes:
 
 
 def tourner(chemin, degres: int = 90) -> None:
-    """Tourne l'image d'une page (sens des aiguilles d'une montre)."""
-    with Image.open(chemin) as img:
-        tournee = img.rotate(-degres, expand=True)
-        tournee.save(chemin, "JPEG", quality=90)
+    """Tourne l'image d'une page (sens des aiguilles d'une montre).
+    0.6.7 (audit, M40) : écrite à côté puis renommée d'un coup : un arrêt laisse l'ancienne page entière, jamais une page tronquée."""
+    chemin = Path(chemin)
+    tmp = chemin.with_name(f".{chemin.name}.partiel")
+    try:
+        with Image.open(chemin) as img:
+            tournee = img.rotate(-degres, expand=True)
+            tournee.save(tmp, "JPEG", quality=90)
+        os.replace(tmp, chemin)
+    finally:
+        tmp.unlink(missing_ok=True)

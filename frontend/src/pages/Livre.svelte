@@ -508,7 +508,7 @@
 
   <footer class="max-w-3xl border-t pt-4">
     {#if suppression}
-      <p class="mb-2 text-sm">Le PDF importé, les pages et le texte lu seront effacés du NAS. Un livre déjà déposé reste dans Grimmory.</p>
+      <p class="mb-2 text-sm">Le livre part dans la corbeille (écran Livres) : il peut y être restauré pendant 30 jours, puis le PDF importé, les pages et le texte lu sont effacés du NAS. Un livre déjà déposé reste dans Grimmory.</p>
       <div class="flex gap-2"><Button variant="destructive" onclick={supprimer} disabled={attente === 'supprimer'}>Supprimer ce livre</Button>
         <Button variant="ghost" onclick={() => (suppression = false)}>Garder</Button></div>
     {:else}

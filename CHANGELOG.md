@@ -1,5 +1,11 @@
 # Journal des versions — Scriptorium
 
+## 0.6.7 — 18 novembre 2026 (constats moyens de l'audit)
+- **M38** : supprimer un livre le met dans une corbeille pour 30 jours au lieu de tout effacer : il disparaît de la liste, sa lecture et son PDF demandés s'arrêtent, mais le PDF source, les pages et le texte relu restent sur le NAS. Une petite section « Corbeille » de l'écran Livres permet de le restaurer (`POST /api/livres/{id}/restaurer`, liste par `GET /api/corbeille`) ; la tâche de fond l'efface pour de bon après 30 jours (ligne « effacement » au journal).
+- **M40** : l'EPUB, le PDF des pages et une page tournée sont écrits dans un fichier provisoire puis renommés d'un coup (`os.replace`) : un arrêt en route ne laisse plus un fichier tronqué sous le nom final. Le PDF A5 le faisait déjà.
+- **M41** : l'image du PC de calcul (`pc/Dockerfile`) tourne sous un compte sans droits (`calcul`, uid 1000) ; torch et torchvision sont bornés à leur ligne actuelle (torch 2.x, torchvision 0.x), Marker reste à 2.2.0. Un volume `modeles` créé avant appartient à root : voir `pc/LISEZMOI.md`.
+- `maison.py` du socle 0.8.2 (audit M3) : réglages secrets reconnus par mots, adresse avec identifiant écartée, champ `ecartes` dans la sauvegarde (noms seulement).
+
 ## 0.6.6 — 18 novembre 2026 (plafond par livre)
 - **Plafond de dépense par livre** (décision du 18/11/2026, Q12 de l'audit) : réglage « Plafond de dépense par livre », 2 € par défaut (0 : pas de plafond ; 1 $ ≈ 0,90 €). Lancer une lecture ou relire une page qui ferait dépasser le plafond répond par le montant et demande « Dépasser pour ce livre » ; la lecture de fond s'arrête aussi d'elle-même avant la page de trop. Le plafond levé est noté au journal et vaut pour ce livre seulement.
 
