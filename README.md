@@ -2,7 +2,7 @@
 
 D'un livre scanné à un vrai livre en texte : PDF et EPUB recomposés, qui gardent la mise en forme et les illustrations.
 
-État : **0.6.0** — import d'un PDF, inventaire des pages manquantes, lecture par Mistral et contre-lecture par le PC, fiche par l'ISBN, EPUB et PDF A5, dépôt dans Grimmory, réglages sauvegardés par l'Anneau. La conception est dans [`docs/dossier.md`](docs/dossier.md), le point du chantier dans [`REPRISE.md`](REPRISE.md).
+État : **0.8.0** — import d'un PDF, inventaire des pages manquantes, lecture par Mistral et contre-lecture par le PC, fiche par l'ISBN, EPUB et PDF A5, dépôt dans Grimmory, réglages sauvegardés par l'Anneau. La conception est dans [`docs/dossier.md`](docs/dossier.md), le point du chantier dans [`REPRISE.md`](REPRISE.md).
 
 ## Principe
 

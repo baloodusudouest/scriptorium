@@ -97,11 +97,15 @@ def test_livre_fabrique_et_services(navigateur, adresse, taille):
     page.get_by_role("button", name="Déposer dans Grimmory").wait_for()
     sans_debordement(page)
     page.goto(adresse + "/#/connexion")
+    # 0.8.0 : fiches communes ; trois services, donc trois cartes dépliées (pas de tuiles)
     page.get_by_text("Mistral OCR").first.wait_for()
-    page.get_by_role("button", name="Grimmory").click()
-    page.get_by_text("dossier d'import de Grimmory").wait_for()
+    page.get_by_text("PC de calcul").first.wait_for()
+    page.get_by_text("dossier d'import de Grimmory").first.wait_for()
+    assert page.get_by_role("button", name="Vérifier").count() >= 1
     sans_debordement(page)
     page.goto(adresse + "/#/reglages")
+    page.get_by_text("Dossier de données").wait_for()
+    page.get_by_text("Go libres sur").wait_for()
     page.get_by_text("Journal").wait_for()
     page.get_by_text("Lecture par Mistral").first.wait_for()
     assert erreurs == []

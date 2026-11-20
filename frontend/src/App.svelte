@@ -1,7 +1,7 @@
 <script>
   // Navigation commune aux applis (0.2.0) : rail à gauche sur PC, pilule d'icônes en bas sur iPhone.
   // Les entrées attendues dans une appli : son écran de travail ou « À traiter » en tuiles,
-  // « Connexion » (une tuile par service extérieur) et « Réglages » (ce qui n'est pas un service,
+  // « Connexion » (fiches communes des services extérieurs, contrat 3) et « Réglages » (ce qui n'est pas un service,
   // la version, la déconnexion). Voir docs/format.md.
   import { onMount } from 'svelte'
   import { fly } from 'svelte/transition'
@@ -13,7 +13,7 @@
   import Livres from './pages/Livres.svelte'
   import Livre from './pages/Livre.svelte'
   import Page from './pages/Page.svelte'
-  import Services from './pages/Services.svelte'
+  import Services from '$lib/services/Services.svelte'   // 0.8.0 : écran commun (contrat 3, socle 0.11.0)
   import Reglages from './pages/Reglages.svelte'
 
   // Livres est l'écran de travail ; un livre ouvert (#/livre/12) garde l'onglet Livres allumé.
@@ -102,7 +102,7 @@
       {#key page + (livreId ?? '') + '/' + (pageRang ?? '')}
         <div in:fly={{ y: 6, duration: 180 }}>
           {#if page === 'connexion'}
-            <Services ondeconnecte={() => (connecte = false)} />
+            <Services lectureSeule={session.lecture_seule} ondeconnecte={() => (connecte = false)} />
           {:else if page === 'reglages'}
             <Reglages {session} {deconnecter} />
           {:else if livreId && pageRang}

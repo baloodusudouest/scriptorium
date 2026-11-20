@@ -2,6 +2,14 @@
 
 Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaque fin de session, dans le même commit que le code.
 
+## État (20/11/2026)
+
+- **0.8.0** (20/11/2026) : fiches « Connexion » communes (contrat 3, socle 0.11.0, `app/maison.py` et `frontend/src/lib/services/` copies non retouchées).
+  - Services déclarés dans `app/main.py` (section « fiches Connexion ») : `mistral` (Vérifier = liste des modèles, gratuite), `pc-calcul` (Vérifier = date du dernier passage, jamais d'appel au PC ; guide dans `contre.guide`), `grimmory` (dossier inscriptible, sans écrire). Aucun geste.
+  - Routes `GET /api/maison/services`, `POST /api/maison/services/{id}/verifier` (session ou `ANNEAU_CLE`). Dossier de données dans Réglages (`GET /api/dossier`).
+  - **À retirer en 0.9.0** : `GET /api/services` et `POST /api/services/mistral/verifier`.
+  - **Jamais essayé sur la vraie installation** (ni l'écran, ni la lecture par l'Anneau, ni le guide du PC face au vrai PC).
+
 ## État (18/11/2026)
 
 - **0.7.0** (18/11/2026) : santé des tâches de fond (socle 0.9.0, `app/maison.py` copie signée non retouchée).

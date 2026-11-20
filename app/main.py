@@ -15,6 +15,10 @@ Réglages d'usage (0.6) : <données>/reglages.json (maison.Reglages), changés d
 0.7.0 (santé des tâches de fond, socle 0.9.0) : tâches suivies dans maison.TACHES (voir travail.py), copie
 cohérente de scriptorium.db chaque nuit à 02:20 (heure de Paris) dans <données>/copies ; /health ajoute
 version_socle, taches et copie_base. Un seul worker uvicorn (registre en mémoire).
+0.8.0 (fiches « Connexion » communes, contrat 3, socle 0.11.0) : GET /api/maison/services et
+POST /api/maison/services/{id}/verifier (session, ou ANNEAU_CLE pour l'Anneau) ; services mistral, pc-calcul
+(avec son guide), grimmory. Le dossier de données passe dans Réglages (/api/dossier). Anciennes routes
+/api/services et /api/services/mistral/verifier gardées une version (à retirer en 0.9.0).
 """
 from __future__ import annotations
 
@@ -713,6 +717,7 @@ def deposer(livre_id: int):
     tmp.rename(cible)   # Grimmory ne voit le fichier qu'une fois complet
     ETAT["base"].ecrire("UPDATE livres SET depose_le = ? WHERE id = ?", maintenant(), livre_id)
     ETAT["base"].noter("depot_grimmory", livre_id, source.name)
+    SERVICES.noter("grimmory", True, "Dernier dépôt réussi.")    # 0.8.0 : le geste vaut essai pour la fiche
     return _vue(_livre(livre_id))
 
 
@@ -763,6 +768,8 @@ def calcul_rendu(livre_id: int, rang: int, request: Request, corps: dict = Body(
 
 @app.get("/api/services")
 def services():
+    """Ancien écran « Connexion » (0.2 à 0.7). 0.8.0 : remplacé par les fiches communes (/api/maison/services) ;
+    gardé une version, à retirer à la version suivante (0.9.0)."""
     cfg: Config = ETAT["cfg"]
     disque = shutil.disk_usage(cfg.data)
     return {
@@ -780,8 +787,95 @@ def services():
 
 @app.post("/api/services/mistral/verifier")
 def verifier_mistral():
+    """Ancien bouton « Vérifier » de Mistral. 0.8.0 : gardé une version, à retirer à la version suivante (0.9.0)."""
     cfg: Config = ETAT["cfg"]
-    return mistral.verifier(cfg.mistral_cle, cfg.mistral_url)
+    v = mistral.verifier(cfg.mistral_cle, cfg.mistral_url)
+    if cfg.mistral_cle:
+        SERVICES.noter("mistral", v["ok"], v["message"])
+    return v
+
+
+@app.get("/api/dossier")
+def dossier_de_donnees():
+    """0.8.0 : le dossier de données quitte « Connexion » (ce n'est pas un service) pour Réglages."""
+    cfg: Config = ETAT["cfg"]
+    disque = shutil.disk_usage(cfg.data)
+    return {"total": disque.total, "libre": disque.free, "inscriptible": _inscriptible(cfg.data),
+            "travail": ETAT["travail"].en_cours}
+
+
+# ================================================================ fiches « Connexion » (0.8.0, contrat 3, socle 0.11.0)
+# Les services extérieurs de Scriptorium au format commun (GET /api/maison/services, POST …/{id}/verifier), lus par
+# l'écran Connexion et par la fiche « État » de l'Anneau (ANNEAU_CLE). « Vérifier » ne fait qu'une lecture courte :
+#   - Mistral OCR : la liste des modèles (GET /v1/models, gratuite ; aucune page envoyée, rien de facturé) ;
+#   - PC de calcul : la date de son dernier passage, notée par la porte /calcul (Scriptorium n'appelle jamais le PC :
+#     rien ne peut le réveiller) ;
+#   - Grimmory : le dossier d'import existe et est inscriptible (os.access, sans y écrire de fichier d'essai).
+# Aucun geste qui écrit ici : « Faire lire » et « Déposer dans Grimmory » restent sur la fiche de chaque livre.
+
+def _derniere(quoi: str, sauf: str = "") -> str | None:
+    """Date de la dernière ligne du journal des écritures de ce genre (None : jamais)."""
+    r = ETAT["base"].un("SELECT MAX(le) AS le FROM journal WHERE quoi = ? AND (? = '' OR detail NOT LIKE ?)",
+                        quoi, sauf, f"{sauf}%")
+    return r["le"] if r and r["le"] else None
+
+
+def _essai_mistral():
+    cfg: Config = ETAT["cfg"]
+    v = mistral.verifier(cfg.mistral_cle, cfg.mistral_url)    # GET /v1/models : gratuit, rien n'est lu ni facturé
+    return bool(v.get("ok")), v.get("message")
+
+
+def _guide_mistral() -> dict:
+    cfg: Config = ETAT["cfg"]
+    plafond = ETAT["reglages"].get("plafond_livre")
+    facturees = ETAT["base"].un("SELECT COALESCE(SUM(pages_facturees), 0) AS n FROM pages")["n"]
+    return {"reglages": [
+        {"nom": "Modèle", "valeur": cfg.mistral_modele},
+        {"nom": "Estimation affichée", "valeur": f"{ETAT['reglages'].get('prix_page')} $ par page (réglable dans Réglages)"},
+        {"nom": "Plafond de dépense par livre", "valeur": f"{plafond} € (Réglages)" if plafond else "aucun (Réglages)"},
+        {"nom": "Pages facturées", "valeur": f"{facturees} page{'s' if facturees > 1 else ''} (tous livres)"},
+        {"nom": "Vérifier", "valeur": "lit seulement la liste des modèles : gratuit, aucune page envoyée"},
+    ]}
+
+
+def _essai_pc():
+    return contre.essai(ETAT["base"])
+
+
+def _essai_grimmory():
+    import os
+    dossier = ETAT["cfg"].bookdrop
+    if dossier and dossier.is_dir() and os.access(dossier, os.W_OK | os.X_OK):
+        return True, "Le dossier est accessible en écriture."
+    return False, "Le dossier est absent ou en lecture seule : vérifie le volume dans la stack."
+
+
+SERVICES = maison.Services(APPLI)
+SERVICES.ajouter(
+    "mistral", "Mistral OCR",
+    lit="Il renvoie le texte mis en forme et les illustrations de chaque page.",
+    ecrit="Scriptorium lui envoie l'image de chaque page, sur ton clic « Faire lire » (lecture payante). La clé reste "
+          "dans la stack (SCRIPTORIUM_MISTRAL_CLE) et ne passe jamais par le navigateur.",
+    regle=lambda: bool(ETAT["cfg"].mistral_cle), reglage="SCRIPTORIUM_MISTRAL_CLE", essai=_essai_mistral,
+    derniere_ecriture=lambda: _derniere("lecture_mistral", sauf="plafond"), guide=_guide_mistral)
+SERVICES.ajouter(
+    "pc-calcul", "PC de calcul",
+    lit="Le PC relit chaque page avec Marker, sur son processeur, et rend le texte. Les mots qui diffèrent de la "
+        "lecture de Mistral deviennent les mots à relire.",
+    ecrit="Rien : il vient chercher le travail lui-même (l'image des pages), avec son jeton (SCRIPTORIUM_JETON_CALCUL) ; "
+          "éteint, il ne bloque rien.",
+    regle=lambda: bool(ETAT["cfg"].jeton_calcul), reglage="SCRIPTORIUM_JETON_CALCUL", essai=_essai_pc,
+    guide=lambda: contre.guide(ETAT["base"], bool(ETAT["cfg"].jeton_calcul)))
+SERVICES.ajouter(
+    "grimmory", "Grimmory",
+    lit="Il n'y lit rien d'autre que la présence d'un fichier du même nom, pour ne jamais le remplacer.",
+    ecrit="Scriptorium dépose l'EPUB fabriqué dans le dossier d'import de Grimmory (SCRIPTORIUM_BOOKDROP), sur ton clic, "
+          "sans jamais remplacer un fichier déjà présent.",
+    regle=lambda: bool(ETAT["cfg"].bookdrop), reglage="SCRIPTORIUM_BOOKDROP", essai=_essai_grimmory,
+    derniere_ecriture=lambda: _derniere("depot_grimmory"))
+# Monté APRÈS la garde : le dernier middleware ajouté passe en premier (sinon la garde refuse l'Anneau).
+maison.monter_services(app, SERVICES, lambda r: "sessions" in ETAT and ETAT["sessions"].connecte(r.cookies))
 
 
 @app.get("/api/journal")

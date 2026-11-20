@@ -1,6 +1,7 @@
 <script>
   // « Réglages » : ce qui n'est pas un service. L'écriture, les réglages d'usage et leur restauration (0.6),
-  // le journal des écritures, puis la version et la déconnexion.
+  // le dossier de données (0.8.0 : venu de Connexion, ce n'est pas un service), le journal des écritures,
+  // puis la version et la déconnexion.
   import { onMount } from 'svelte'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
@@ -99,8 +100,18 @@
     attenteRestaurer = false
   }
 
+  // ---------------------------------------------------------------- dossier de données (0.8.0, venu de Connexion)
+  let dossier = $state(null)
+  let erreurDossier = $state('')
+  async function lireDossier() {
+    erreurDossier = ''
+    try { dossier = await api.get('/api/dossier') } catch (err) { erreurDossier = err.message }
+  }
+  const go = (o) => (o / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 1 })
+
   onMount(async () => {
     lireReglages()
+    lireDossier()
     try { journal = await api.get('/api/journal') } catch { journal = [] }
   })
 
@@ -162,6 +173,20 @@
       </div>
     </form>
   {/if}
+</section>
+
+<section class="mt-4 max-w-3xl rounded-2xl border bg-card p-5" aria-labelledby="titre-dossier">
+  <h2 id="titre-dossier" class="text-lg font-semibold">Dossier de données</h2>
+  <p class="mt-1 text-sm text-muted-foreground">Les PDF importés, les pages découpées, le texte lu et les livres fabriqués. Compte environ trois fois la taille du PDF par livre.</p>
+  {#if dossier}
+    <p class="mt-2 text-sm">{go(dossier.libre)} Go libres sur {go(dossier.total)} Go{dossier.travail ? ` · en cours : ${dossier.travail}` : ''}.</p>
+    {#if !dossier.inscriptible}<p class="mt-1 text-sm text-destructive" role="alert">Le dossier n'est pas accessible en écriture : vérifie le volume dans la stack.</p>{/if}
+  {:else if erreurDossier}
+    <p class="mt-2 text-sm text-destructive" role="alert">{erreurDossier}</p>
+  {:else}
+    <p class="mt-2 text-sm text-muted-foreground">Lecture…</p>
+  {/if}
+  <div class="mt-3"><Button variant="outline" onclick={lireDossier}>Relire</Button></div>
 </section>
 
 <section class="mt-4 max-w-3xl rounded-2xl border bg-card p-5" aria-labelledby="titre-restaurer">

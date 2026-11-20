@@ -13,6 +13,7 @@ MOT_DE_PASSE = "mot-de-passe-de-test"
 @pytest.fixture()
 def client(tmp_path):
     main.ETAT.clear()
+    main.SERVICES._dernier.clear()     # 0.8.0 : derniers essais des fiches « Connexion » (registre du module)
     main.ETAT["cfg"] = Config(password=MOT_DE_PASSE, data=tmp_path, static=tmp_path / "static",
                               attente_connexion=False, travail_auto=False, bookdrop=tmp_path / "bookdrop")
     with TestClient(main.app) as c:
