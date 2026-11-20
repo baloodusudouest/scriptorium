@@ -4,6 +4,7 @@ Fichier à lire en premier dans une nouvelle session. Le mettre à jour à chaqu
 
 ## État (20/11/2026)
 
+- **0.8.1 (20/11/2026)** : copies communes du socle 0.11.1 (titre « Pour le relier » quand le réglage est dans l'appli).
 - **0.8.0** (20/11/2026) : fiches « Connexion » communes (contrat 3, socle 0.11.0, `app/maison.py` et `frontend/src/lib/services/` copies non retouchées).
   - Services déclarés dans `app/main.py` (section « fiches Connexion ») : `mistral` (Vérifier = liste des modèles, gratuite), `pc-calcul` (Vérifier = date du dernier passage, jamais d'appel au PC ; guide dans `contre.guide`), `grimmory` (dossier inscriptible, sans écrire). Aucun geste.
   - Routes `GET /api/maison/services`, `POST /api/maison/services/{id}/verifier` (session ou `ANNEAU_CLE`). Dossier de données dans Réglages (`GET /api/dossier`).

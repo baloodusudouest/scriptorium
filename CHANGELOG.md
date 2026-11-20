@@ -1,5 +1,9 @@
 # Journal des versions — Scriptorium
 
+## 0.8.1 — 20 novembre 2026 (socle 0.11.1)
+- Copies communes du socle 0.11.1 : sur une fiche « Connexion », le titre devient « Pour le relier » quand le réglage se fait dans Réglages de l'appli (et non dans la stack).
+- **Jamais essayé sur la vraie installation.**
+
 ## 0.8.0 — 20 novembre 2026 (fiches « Connexion » communes, contrat 3)
 - **Écran Connexion commun** (`frontend/src/lib/services/Services.svelte` et `FicheService.svelte`, copies du socle 0.11.0, empreintes contrôlées par les tests) : trois services, donc trois fiches dépliées, chacune avec son état en mots, **Ce qui est lu**, **Ce qui est écrit**, « Pour le relier, dans la stack » et **Vérifier**. L'ancien `pages/Services.svelte` (tuiles) est retiré.
 - **Nouvelles routes** (module commun `maison.py`, contrat 3) : `GET /api/maison/services` et `POST /api/maison/services/{id}/verifier`, ouvertes à la session ou à la clé de l'Anneau (`ANNEAU_CLE`, nouvelle variable ; vide : l'Anneau ne lit pas les fiches ; `MAISON_JETON` ne les ouvre pas). Le GET ne lance aucun essai ; au plus un essai par service toutes les 30 s.

@@ -51,7 +51,7 @@ def un_tour(travail):
 def test_health_porte_la_sante_sans_message_sans_jeton(client):
     un_tour(main.ETAT["travail"])
     r = client.get("/health").json()
-    assert r["version_socle"] == "0.11.0"
+    assert r["version_socle"] == "0.11.1"
     taches = par_nom(r)
     assert set(taches) == {"purge-corbeille", "decoupe", "lecture-mistral", "pdf-a5", "copie-des-bases"}
     assert taches["purge-corbeille"]["type"] == "reguliere" and taches["purge-corbeille"]["periode_s"] == 3600
